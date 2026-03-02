@@ -20,6 +20,56 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Database Configuration
+
+This application uses Google Sheets as a database through Google Apps Script. The configuration is as follows:
+
+### Google Sheets Database
+- **Spreadsheet ID**: `1pKnLsQ-hs1uWfEpyd4rkde0abNx0PtiikB1aAptcJGU`
+- **Stock Sheet**: "Stok outlet Cempaka" (Sheet 2)
+- **Orders Sheet**: "Orders" (adjust name as needed)
+- **Config Sheet**: "Config" (adjust name as needed)
+
+### Google Apps Script Setup
+
+1. Open your Google Spreadsheet (`1pKnLsQ-hs1uWfEpyd4rkde0abNx0PtiikB1aAptcJGU`)
+2. Click **Extensions > Apps Script**
+3. Delete the default code and copy the entire content from `spreadsheet-script.gs` in this repository
+4. Save the project (Ctrl+S or Cmd+S)
+5. Deploy as a web app:
+   - Click **Deploy > New deployment**
+   - Choose type: **Web app**
+   - Execute as: **Me**
+   - Who has access: **Anyone**
+   - Click **Deploy**
+6. Copy the web app URL and update it in the frontend components if needed
+
+**Important Notes:**
+- The script is now directly embedded in the spreadsheet, eliminating the need for a separate Google Apps Script project
+- This approach reduces NetworkError issues as the script runs in the same context as the spreadsheet
+- The script includes better error handling and supports batch stock updates
+
+### Sheet Structure
+
+**Stok outlet Cempaka Sheet:**
+- Column A: id_item (e.g., "PKT PA", "PKT PB")
+- Column B: nama_item (item name)
+- Column C: stok (stock quantity)
+- Column D: status ("Tersedia", "Hampir Habis", "Terjual Habis")
+- Column E: catatan (notes)
+
+**Orders Sheet:**
+- Column A: no_order (order number)
+- Column B: waktu (timestamp)
+- Column C: nama (customer name)
+- Column D: pesanan (order details)
+- Column E: total (total amount)
+- Column F: catatan (notes)
+
+**Config Sheet:**
+- Column A: key (jam_buka, jam_tutup, max_pesanan)
+- Column B: value (corresponding values)
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

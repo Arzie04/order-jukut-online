@@ -10,10 +10,9 @@ export default function ClosedPage() {
   // fungsi sama seperti di OrderingPage
   // hanya hitung baris yang kolom "no_order"-nya terisi
   const fetchOrderCount = async () => {
-    try {
-      const res = await fetch(
-        'https://script.google.com/macros/s/AKfycbwhQv8nQxzbxESJddGaAZQNpVFF20HepUwe8lzddBqtydqvcQyIB0_KdcWFpOaIbLIZ/exec'
-      );
+    try {        const res = await fetch(
+          'https://script.google.com/macros/s/AKfycbxEVHfzLO5ghRZg-f5A2KsYROBALRqTcAPQQ9nxX2tmU1KEaZWisoYyvJA19RPRu8Kf/exec?api=orders'
+        );
       const data = await res.json();
       console.log('[CLOSED-API] raw data:', data);
 

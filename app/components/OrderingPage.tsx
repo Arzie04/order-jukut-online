@@ -5,10 +5,24 @@ import { useRouter } from 'next/navigation';
 import MenuModal from './MenuModal';
 import ConfirmationModal from './ConfirmationModal';
 import AlertModal from './AlertModal';
+import { API_URLS } from '../lib/api-config';
 
 interface AlertMessage {
   type: 'danger' | 'warning' | 'success';
   message: string;
+}
+
+interface StockItem {
+  id_item: string;
+  nama_item: string;
+  stok: number;
+  status: 'Tersedia' | 'Hampir Habis' | 'Terjual Habis';
+  catatan: string;
+  cell_nama?: string;
+  cell_stok?: string;
+  cell_status?: string;
+  link_stok?: string;
+  link_status?: string;
 }
 
 export default function OrderingPage() {
@@ -27,6 +41,7 @@ export default function OrderingPage() {
   const [statusReason, setStatusReason] = useState<string | null>(null);
   const [openingTimeText, setOpeningTimeText] = useState<string>('10.00');
   const [closingTimeText, setClosingTimeText] = useState<string>('15.30');
+  const [stock, setStock] = useState<StockItem[]>([]);
   const orderInputRef = useRef<HTMLTextAreaElement>(null);
 
   // settings loaded from config API
@@ -264,6 +279,63 @@ export default function OrderingPage() {
     }
   };
 
+  const itemCodeToNameMap: { [key: string]: string } = {
+    'PA': 'PAHA ATAS',
+    'PB': 'PAHA BAWAH',
+    'DD': 'DADA',
+    'SY': 'SAYAP',
+    'TD': 'TELUR DADAR',
+    'TP': 'TEMPE',
+    'TH': 'TAHU',
+    'JK': 'JUKUT',
+    'TG': 'TERONG',
+    'KG': 'KOL',
+    'SI': 'SAMBAL IJO',
+    'SB': 'SAMBAL BAWANG',
+    'ATI': 'ATI AMPELA',
+    'KL': 'KULIT',
+  };
+
+  const getOrderQuantities = (): { [key: string]: number } => {
+    const quantities: { [key: string]: number } = {};
+    const orderLines = order.trim().split('\n');
+
+    for (const line of orderLines) {
+        if (!line.trim()) continue;
+        const parts = line.trim().split(/\s+/);
+        if (parts.length < 2) continue;
+
+        const itemCode = parts[1];
+        const qty = parts.length > 2 ? parseInt(parts[2], 10) || 1 : 1;
+
+        if (itemCode === 'TT') { // Special case for Tahu Tempe
+            quantities['TAHU'] = (quantities['TAHU'] || 0) + qty;
+            quantities['TEMPE'] = (quantities['TEMPE'] || 0) + qty;
+        } else if (itemCodeToNameMap[itemCode]) {
+            const itemName = itemCodeToNameMap[itemCode];
+            quantities[itemName] = (quantities[itemName] || 0) + qty;
+        }
+    }
+    return quantities;
+  }
+
+  const validateStock = (): string | null => {
+    const orderQuantities = getOrderQuantities();
+    const unavailableItems: string[] = [];
+    for (const itemName in orderQuantities) {
+      const stockItem = stock.find(item => item.nama_item.toUpperCase() === itemName.toUpperCase());
+      if (!stockItem || stockItem.stok < orderQuantities[itemName]) {
+        unavailableItems.push(`${itemName} (stok: ${stockItem ? stockItem.stok : 0}, butuh: ${orderQuantities[itemName]})`);
+      }
+    }
+
+    if (unavailableItems.length > 0) {
+      return `Stok tidak cukup untuk: ${unavailableItems.join(', ')}. Silakan ubah pesanan Anda.`;
+    }
+
+    return null;
+  };
+
   const handleOpenConfirm = () => {
     if (!isStoreOpen) {
       setAlert({
@@ -288,6 +360,16 @@ export default function OrderingPage() {
       return;
     }
 
+    const stockValidationError = validateStock();
+    if (stockValidationError) {
+      setAlert({
+        type: 'danger',
+        message: stockValidationError,
+      });
+      setShowAlertModal(true);
+      return;
+    }
+
     const isValid = calculateTotal();
     if (!isValid) {
       setAlert({
@@ -302,7 +384,97 @@ export default function OrderingPage() {
     setShowConfirmModal(true);
   };
 
-  const handleModalSubmit = () => {
+  const getNextOrderId = async (): Promise<string> => {
+    try {          const res = await fetch(API_URLS.ORDERS);
+      const data = await res.json();
+
+      if (Array.isArray(data)) {
+        const today = new Date();
+        const y = today.getFullYear();
+        const m = today.getMonth();
+        const d = today.getDate();
+
+        const todaysOrders = data.filter((row: any) => {
+          if (!row || typeof row !== 'object' || !row.waktu || !row.no_order) return false;
+          const t = new Date(row.waktu);
+          return !Number.isNaN(t.getTime()) && t.getFullYear() === y && t.getMonth() === m && t.getDate() === d;
+        });
+
+        if (todaysOrders.length === 0) {
+          return 'ORD-0001';
+        }
+
+        todaysOrders.sort((a, b) => new Date(a.waktu).getTime() - new Date(b.waktu).getTime());
+        const lastOrder = todaysOrders[todaysOrders.length - 1];
+        
+        const lastOrderId = lastOrder.no_order;
+        if (lastOrderId && typeof lastOrderId === 'string' && lastOrderId.startsWith('ORD-')) {
+          const lastNum = parseInt(lastOrderId.replace('ORD-', ''), 10);
+          if (!isNaN(lastNum)) {
+            const nextNum = lastNum + 1;
+            return `ORD-${nextNum.toString().padStart(4, '0')}`;
+          }
+        }
+      }
+
+      // Fallback in case of unexpected data format
+      const fallbackNum = (data.length || 0) + 1;
+      return `ORD-${fallbackNum.toString().padStart(4, '0')}`;
+
+    } catch (e) {
+      console.error('unable to fetch/parse order ID', e);
+      // Fallback on error
+      return `ORD-ERR-${Date.now()}`;
+    }
+  };
+
+  const updateStock = async (orderQuantities: { [key: string]: number }) => {
+    const updatedStockItems = [];
+
+    for (const itemName in orderQuantities) {
+      const stockItem = stock.find(item => item.nama_item.toUpperCase() === itemName.toUpperCase());
+      if (stockItem) {
+        const newStock = stockItem.stok - orderQuantities[itemName];
+        let newStatus: StockItem['status'] = 'Tersedia';
+        if (newStock <= 0) {
+          newStatus = 'Terjual Habis';
+        } else if (newStock < 5) {
+          newStatus = 'Hampir Habis';
+        }
+
+        updatedStockItems.push({
+          id_item: stockItem.id_item,
+          stok: newStock,
+          status: newStatus,
+        });
+      }
+    }
+
+    if (updatedStockItems.length > 0) {
+      console.log('Updating stock with the following data:');
+      console.log(updatedStockItems);
+      
+      try {
+        const res = await fetch('https://script.google.com/macros/s/AKfycbwhQv8nQxzbxESJddGaAZQNpVFF20HepUwe8lzddBqtydqvcQyIB0_KdcWFpOaIbLIZ/exec', {
+          method: 'POST',
+          body: JSON.stringify(updatedStockItems),
+        });
+        
+        if (!res.ok) {
+          console.error('Failed to update stock:', res.status, res.statusText);
+        } else {
+          console.log('Stock updated successfully');
+        }
+      } catch (error) {
+        console.error('Error updating stock:', error);
+      }
+
+      // After update attempt, fetch the stock again to refresh the UI
+      await fetchStock();
+    }
+  };
+
+  const handleModalSubmit = async () => {
     const nameVal = name.trim();
     const orderVal = order.trim();
     const noteVal = note.trim();
@@ -342,6 +514,9 @@ export default function OrderingPage() {
     }
     localStorage.setItem('lastOrderTime', nowms.toString());
 
+    // --- Get latest order count for unique ID ---
+    const orderId = await getNextOrderId();
+
     // Submit to Google Forms
     const formURL =
       'https://docs.google.com/forms/d/e/1FAIpQLSceaYNjewOa6lWgeab7Zo-pkJ7WUBnox9C8DQ3HX9lh8E5IeQ/formResponse';
@@ -351,6 +526,9 @@ export default function OrderingPage() {
     formData.append('entry.794602475', orderVal);
     formData.append('entry.1229878423', noteVal);
     formData.append('entry.39066530', total.toLocaleString('id-ID'));
+    // also submit the generated order ID
+    formData.append('entry.1172007624', orderId);
+
 
     fetch(formURL, { method: 'POST', mode: 'no-cors', body: formData });
 
@@ -359,15 +537,36 @@ export default function OrderingPage() {
     const time =
       now.getHours().toString().padStart(2, '0') +
       ':' +
-      now.getMinutes().toString().padStart(2, '0')+ 
+      now.getMinutes().toString().padStart(2, '0') +
       ':' +
       now.getSeconds().toString().padStart(2, '0');
-    const formattedTotal = total.toLocaleString('id-ID').replace(/\./g, ',');
-    const waText = encodeURIComponent(
-      `!!JANGAN UBAH PESAN INI!! Pesanan pada jam ${time} dengan Nama ${nameVal}, total ${formattedTotal}`
-    );
+
+    const orderLines = orderVal.split('\n').map(line => {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length < 3) return null;
+      const code = parts.slice(0, 2).join(' ');
+      const qty = parseInt(parts[2], 10) || 0;
+      const price = priceMap[code];
+      if (price !== undefined && qty > 0) {
+        return `*${code} ${qty} = ${(price * qty).toLocaleString('id-ID')}*`;
+      }
+      return null;
+    }).filter(Boolean).join('\n');
+
+    const formattedTotal = total.toLocaleString('id-ID');
+    
+    let message = `*!!JANGAN UBAH PESAN INI!!*\n\n${orderId}\n\nPesanan pada jam ${time}\ndengan *Nama ${nameVal}*,\n\n${orderLines}`;
+    if (noteVal) {
+      message += `\n\nNote : *${noteVal}*`;
+    }
+    message += `\ntotal *${formattedTotal}*\n\nPembayaran QRIS\n\n*kirim bukti pembayaran disini :`;
+
+    const waText = encodeURIComponent(message);
     const waUrl = `https://wa.me/62882007448066?text=${waText}`;
     window.open(waUrl, '_blank');
+
+    const orderQuantities = getOrderQuantities();
+    await updateStock(orderQuantities);
 
     // Reset form
     setName('');
@@ -385,9 +584,7 @@ export default function OrderingPage() {
   // fetch configuration (jam buka/tutup, max pesanan) from API
   const fetchConfig = async () => {
     try {
-      const res = await fetch(
-        'https://script.google.com/macros/s/AKfycbwhQv8nQxzbxESJddGaAZQNpVFF20HepUwe8lzddBqtydqvcQyIB0_KdcWFpOaIbLIZ/exec?api=config'
-      );
+      const res = await fetch(API_URLS.CONFIG);
       const data = await res.json();
       console.log('[CONFIG-API] raw config:', data);
 
@@ -425,12 +622,42 @@ export default function OrderingPage() {
     }
   };
 
+  const fetchStock = async () => {
+    try {
+      // Try to fetch items with links first
+      const resWithLinks = await fetch(
+        'https://script.google.com/macros/s/AKfycbxEVHfzLO5ghRZg-f5A2KsYROBALRqTcAPQQ9nxX2tmU1KEaZWisoYyvJA19RPRu8Kf/exec?api=itemsWithLinks'
+      );
+      const dataWithLinks = await resWithLinks.json();
+      
+      if (Array.isArray(dataWithLinks) && dataWithLinks.length > 0) {
+        setStock(dataWithLinks);
+        console.log('[STOCK-API] items with links data:', dataWithLinks);
+        return dataWithLinks;
+      }
+      
+      // Fallback to regular stock API
+      const res = await fetch(
+        'https://script.google.com/macros/s/AKfycbxEVHfzLO5ghRZg-f5A2KsYROBALRqTcAPQQ9nxX2tmU1KEaZWisoYyvJA19RPRu8Kf/exec?api=stock'
+      );
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setStock(data);
+      }
+      console.log('[STOCK-API] fallback raw data:', data);
+      return data;
+    } catch (e) {
+      console.error('unable to fetch stock', e);
+      return [];
+    }
+  };
+
   // hit spreadsheet API to get today's valid order count
   // hanya hitung baris yang kolom "no_order"-nya terisi
   const fetchOrderCount = async () => {
     try {
       const res = await fetch(
-        'https://script.google.com/macros/s/AKfycbwhQv8nQxzbxESJddGaAZQNpVFF20HepUwe8lzddBqtydqvcQyIB0_KdcWFpOaIbLIZ/exec?api=orders'
+        'https://script.google.com/macros/s/AKfycbxEVHfzLO5ghRZg-f5A2KsYROBALRqTcAPQQ9nxX2tmU1KEaZWisoYyvJA19RPRu8Kf/exec?api=orders'
       );
       const data = await res.json();
       console.log('[ORDER-API] raw data:', data);
@@ -515,6 +742,7 @@ export default function OrderingPage() {
     let intervalId: number | undefined;
 
     const checkStatus = async () => {
+      await fetchStock();
       const config = await fetchConfig();
       if (!config) {
         setIsStoreOpen(false);
@@ -556,6 +784,19 @@ export default function OrderingPage() {
       }
     };
   }, []);
+
+  const getStockStatusColor = (status: StockItem['status'] | 'Tidak Tersedia') => {
+    switch (status) {
+      case 'Tersedia':
+        return 'text-green-600';
+      case 'Hampir Habis':
+        return 'text-yellow-600';
+      case 'Terjual Habis':
+        return 'text-red-600';
+      default:
+        return 'text-red-600';
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 pt-4">
@@ -688,6 +929,43 @@ EXT TH 2`}
               📋 Lihat Menu
             </button>
           </div>
+  
+
+          {/* Stock Display */}
+          <div className="text-center mb-6">
+            <h3 className="text-lg font-bold mb-2">Stok Hari Ini</h3>
+            <div className="grid grid-cols-3 gap-x-4 gap-y-2 text-sm">
+              {[
+                'PAHA ATAS',
+                'PAHA BAWAH',
+                'SAYAP',
+                'DADA',
+                'KOL',
+                'TERONG',
+                'TELUR DADAR',
+                'SAMBAL IJO',
+                'SAMBAL BAWANG',
+              ].map((itemName) => {
+                const stockItem = stock.find(
+                  (item) => item.nama_item.toUpperCase() === itemName
+                );
+                const status = stockItem ? stockItem.status : 'Tidak Tersedia';
+                return (
+                  <div key={itemName} className="flex justify-center items-center">
+                    <span className={`font-semibold ${getStockStatusColor(status)}`}>
+                      {itemName.replace('DADAR', '')}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="text-center mb-6 text-xs text-gray-600">
+  <span className="text-green-600">● Tersedia</span> ·
+  <span className="text-yellow-500"> ● Hampir Habis</span> ·
+  <span className="text-red-600"> ● Terjual Habis</span>
+</div>
 
           {/* Form */}
           <form className="space-y-4">
