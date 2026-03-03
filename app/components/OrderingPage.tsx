@@ -6,6 +6,7 @@ import MenuModal from './MenuModal';
 import ConfirmationModal from './ConfirmationModal';
 import AlertModal from './AlertModal';
 import LoadingScreen from './LoadingScreen';
+import FloatingTutorialButton from './FloatingTutorialButton';
 import { API_URLS } from '../lib/api-config';
 
 interface AlertMessage {
@@ -51,6 +52,8 @@ export default function OrderingPage({
   const [showCalcResult, setShowCalcResult] = useState(false);
   const [alert, setAlert] = useState<AlertMessage | null>(null);
   const [showAlertModal, setShowAlertModal] = useState(false);
+  const [whatsappUrl, setWhatsappUrl] = useState('');
+  const [whatsappMessage, setWhatsappMessage] = useState('');
   const [showMenuModal, setShowMenuModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [hasInvalidCodes, setHasInvalidCodes] = useState(false);
@@ -97,9 +100,16 @@ export default function OrderingPage({
     'NP KG': 3000,
     'NP JK': 4000,
     'NP NP': 4000,
+    'EXT SI': 3000,
+    'EXT SB': 3000,
+    'EXT TP': 1000,
+    'EXT TH': 1000,
+    'EXT JK': 4000,
+    'EXT TG': 3000,
+    'EXT KG': 3000,
   };
 
-  const VALID_PREFIX = ['PKT', 'NP'];
+  const VALID_PREFIX = ['PKT', 'NP', 'EXT'];
   const codeAliases: { [key: string]: string } = {
     'PAHA ATAS': 'PA',
     'PAHA BAWAH': 'PB',
@@ -598,6 +608,8 @@ export default function OrderingPage({
     setNote('');
     setTotal(0);
     setShowConfirmModal(false);
+    setWhatsappUrl(waUrl);
+    setWhatsappMessage(message);
     setAlert({
       type: 'success',
       message: 'Pesanan berhasil dikirim! Silakan kirim bukti pembayaran via WhatsApp.',
@@ -683,25 +695,53 @@ export default function OrderingPage({
     }
   };
 
-  // hit spreadsheet API to get today's valid item count (bukan order count)
-  // hitung total item dari semua pesanan hari ini
+  // hit spreadsheet API to get today's valid order count
+  // hanya hitung baris yang kolom "no_order"-nya terisi
   const fetchOrderCount = async () => {
     try {
-      const res = await fetch(API_URLS.ORDER_ITEM_COUNT);
+      const res = await fetch(
+        'https://script.google.com/macros/s/AKfycbxEVHfzLO5ghRZg-f5A2KsYROBALRqTcAPQQ9nxX2tmU1KEaZWisoYyvJA19RPRu8Kf/exec?api=orders'
+      );
       const data = await res.json();
-      console.log('[ORDER-ITEM-COUNT-API] raw data:', data);
+      console.log('[ORDER-API] raw data:', data);
 
       let count = 0;
 
-      // data berupa object dengan itemCount dari API orderItemCount
-      if (data && typeof data.itemCount === 'number') {
-        count = data.itemCount;
+      // data berupa array of object dari ?api=orders
+      if (Array.isArray(data)) {
+        const today = new Date();
+        const y = today.getFullYear();
+        const m = today.getMonth();
+        const d = today.getDate();
+
+        count = data.filter((row: any) => {
+          if (!row || typeof row !== 'object') return false;
+
+          const noOrder = row.no_order;
+          if (
+            noOrder === null ||
+            noOrder === undefined ||
+            String(noOrder).trim() === ''
+          ) {
+            return false;
+          }
+
+          if (!row.waktu) return false;
+          const t = new Date(row.waktu);
+          if (Number.isNaN(t.getTime())) return false;
+
+          return (
+            t.getFullYear() === y &&
+            t.getMonth() === m &&
+            t.getDate() === d
+          );
+        }).length;
       }
 
-      console.log('[ORDER-ITEM-COUNT-API] total item count:', count);
+      console.log('[ORDER-API] valid order count:', count);
       return count;
     } catch (e) {
-      console.error('unable to fetch order item count', e);
+      console.error('unable to fetch order count', e);
       return 0;
     }
   };
@@ -974,6 +1014,9 @@ export default function OrderingPage({
                   Nasi daun jeruk stok hanya sedikit; hanya bisa dipesan di
                   outlet saat stok ada.
                 </li>
+                <li>
+                  Pesanan masuk akan dibuat sesuai jam buka store offline sesuai urutan pesanan.
+                </li>
               </ul>
             </div>
 
@@ -1072,7 +1115,10 @@ EXT TH 2`}
                   ref={orderInputRef}
                   rows={4}
                   required
-                  placeholder="Contoh:&#10;PKT PA 1&#10;NP DD 2&#10;EXT SI 1"
+                  placeholder={`Contoh :
+PKT PA 1
+NP DD 2
+EXT SI 1`}
                   value={order}
                   onChange={handleOrderChange}
                   onBlur={handleOrderBlur}
@@ -1143,9 +1189,23 @@ EXT TH 2`}
                   'Maaf Outlet sudah tutup atau batas maksimal pesanan tercapai.'}
               </div>
             )}
+
+            <div className="text-center mt-4">
+              <a
+                href="https://forms.gle/chawC4pDJV7KLApY6"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block px-6 py-2 bg-yellow-400 text-yellow-900 rounded-lg hover:bg-yellow-500 transition text-sm font-bold shadow-md"
+              >
+                💬 Kritik & Saran
+              </a>
+            </div>
           </form>
         </div>
       </div>
+
+      {/* Floating Tutorial Button */}
+      <FloatingTutorialButton />
 
       {/* Modals */}
       <MenuModal isOpen={showMenuModal} onClose={() => setShowMenuModal(false)} />
@@ -1161,7 +1221,13 @@ EXT TH 2`}
         isOpen={showAlertModal}
         type={alert?.type || 'info'}
         message={alert?.message || ''}
-        onClose={() => setShowAlertModal(false)}
+        onClose={() => {
+          setShowAlertModal(false);
+          setWhatsappUrl('');
+          setWhatsappMessage('');
+        }}
+        whatsappUrl={whatsappUrl}
+        whatsappMessage={whatsappMessage}
       />
     </div>
   );
