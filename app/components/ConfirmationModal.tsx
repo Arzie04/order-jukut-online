@@ -7,6 +7,8 @@ interface ConfirmationModalProps {
   onClose: () => void;
   total: number;
   onSubmit: () => void;
+  isStoreOpen: boolean;
+  statusReason: string | null;
 }
 
 export default function ConfirmationModal({
@@ -14,6 +16,8 @@ export default function ConfirmationModal({
   onClose,
   total,
   onSubmit,
+  isStoreOpen,
+  statusReason,
 }: ConfirmationModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const [showQris, setShowQris] = useState(false);
@@ -92,56 +96,71 @@ export default function ConfirmationModal({
           >
             ×
           </button>
-        </div>
-
-        {/* Modal Body */}
+        </div>        {/* Modal Body */}
         <div className="p-6 text-center space-y-4 max-h-96 overflow-y-auto">
-          {/* QRIS dengan countdown */}
-          {showQris ? (
-            <img
-              src="/Qris.jpeg"
-              alt="QRIS"
-              className="w-full rounded-lg"
-            />
-          ) : (
-            <div className="flex items-center justify-center">
-              <div className="text-center">
-                <p className="text-gray-600 text-sm">QRIS akan muncul dalam</p>
-                <p className="text-3xl font-bold text-blue-600">{qrisCountdown}</p>
-                <p className="text-gray-600 text-sm">detik</p>
+          {/* Cek apakah outlet buka atau tutup */}
+          {!isStoreOpen ? (
+            <div className="space-y-4">
+              <div className="text-red-600 text-6xl">⚠️</div>
+              <div className="text-red-600 font-bold text-lg">
+                Maaf Outlet tutup atau pesanan online sudah overload, silahkan coba lagi nanti atau datang ke outlet
               </div>
+              {statusReason && (
+                <div className="text-gray-600 text-sm bg-gray-100 p-3 rounded-lg">
+                  {statusReason}
+                </div>
+              )}
             </div>
+          ) : (
+            <>
+              {/* QRIS dengan countdown */}
+              {showQris ? (
+                <img
+                  src="/Qris.jpeg"
+                  alt="QRIS"
+                  className="w-full rounded-lg"
+                />
+              ) : (
+                <div className="flex items-center justify-center">
+                  <div className="text-center">
+                    <p className="text-gray-600 text-sm">QRIS akan muncul dalam</p>
+                    <p className="text-3xl font-bold text-blue-600">{qrisCountdown}</p>
+                    <p className="text-gray-600 text-sm">detik</p>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-red-600 font-bold text-sm">
+                Pastikan harga sudah benar, simpan bukti Pembayaran lalu kirimkan saat
+                whatsapp terbuka
+              </p>
+
+              <p className="text-lg">
+                Total bayar: <span className="font-bold">Rp {total.toLocaleString('id-ID')}</span>
+              </p>
+            </>
           )}
-
-          <p className="text-red-600 font-bold text-sm">
-            Pastikan harga sudah benar, simpan bukti Pembayaran lalu kirimkan saat
-            whatsapp terbuka
-          </p>
-
-          <p className="text-lg">
-            Total bayar: <span className="font-bold">Rp {total.toLocaleString('id-ID')}</span>
-          </p>
-        </div>
-
-        {/* Modal Footer */}
+        </div>        {/* Modal Footer */}
         <div className="border-t border-gray-200 px-6 py-4 flex justify-end gap-3">
           <button
             onClick={onClose}
             className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
           >
-            Batal
+            {!isStoreOpen ? 'Tutup' : 'Batal'}
           </button>
-          <button
-            onClick={onSubmit}
-            disabled={!buttonEnabled}
-            className={`px-4 py-2 rounded-lg font-semibold transition ${
-              buttonEnabled
-                ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
-                : 'bg-gray-400 text-white cursor-not-allowed'
-            }`}
-          >
-            {buttonEnabled ? 'Sudah Bayar' : `Tunggu ${buttonCountdown}s`}
-          </button>
+          {isStoreOpen && (
+            <button
+              onClick={onSubmit}
+              disabled={!buttonEnabled}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                buttonEnabled
+                  ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
+                  : 'bg-gray-400 text-white cursor-not-allowed'
+              }`}
+            >
+              {buttonEnabled ? 'Sudah Bayar' : `Tunggu ${buttonCountdown}s`}
+            </button>
+          )}
         </div>
       </div>
     </div>

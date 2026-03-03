@@ -9,6 +9,7 @@ export const API_CONFIG = {
   // API endpoints
   ENDPOINTS: {
     ORDERS: 'orders',
+    ORDER_ITEM_COUNT: 'orderItemCount',
     STOCK: 'stock', 
     CONFIG: 'config',
     ITEMS_WITH_LINKS: 'itemsWithLinks'
@@ -27,6 +28,7 @@ export function buildApiUrl(endpoint: string): string {
  */
 export const API_URLS = {
   ORDERS: buildApiUrl(API_CONFIG.ENDPOINTS.ORDERS),
+  ORDER_ITEM_COUNT: buildApiUrl(API_CONFIG.ENDPOINTS.ORDER_ITEM_COUNT),
   STOCK: buildApiUrl(API_CONFIG.ENDPOINTS.STOCK),
   CONFIG: buildApiUrl(API_CONFIG.ENDPOINTS.CONFIG),
   ITEMS_WITH_LINKS: buildApiUrl(API_CONFIG.ENDPOINTS.ITEMS_WITH_LINKS)

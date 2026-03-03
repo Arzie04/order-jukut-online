@@ -4,6 +4,8 @@ function doGet(e) {
 
   if (api === "orders") return getOrders();
 
+  if (api === "orderItemCount") return getOrderItemCount();
+
   if (api === "stock") return getStock();
 
   if (api === "config") return getConfig();
@@ -52,6 +54,81 @@ function getOrders() {
 
   return jsonOutput(data);
 
+}
+
+/* =========================
+   ORDER ITEM COUNT (untuk validasi berdasarkan jumlah item)
+========================= */
+function getOrderItemCount() {
+  const sheet = SpreadsheetApp
+    .getActiveSpreadsheet()
+    .getSheetByName("Form Responses 1");
+
+  const rows = sheet.getDataRange().getValues();
+  rows.shift(); // hapus header
+
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = today.getMonth();
+  const d = today.getDate();
+
+  let totalItemCount = 0;
+
+  // Filter orders untuk hari ini dan hitung total item
+  const todayOrders = rows.filter(row => {
+    // Cek apakah ada no_order yang valid
+    const noOrder = row[5]; // kolom no_order
+    if (noOrder === null || noOrder === undefined || String(noOrder).trim() === '') {
+      return false;
+    }
+
+    // Cek apakah waktu adalah hari ini
+    const waktu = row[0]; // kolom waktu
+    if (!waktu) return false;
+    
+    const t = new Date(waktu);
+    if (Number.isNaN(t.getTime())) return false;
+
+    return (
+      t.getFullYear() === y &&
+      t.getMonth() === m &&
+      t.getDate() === d
+    );
+  });
+
+  // Hitung total item dari semua pesanan hari ini (hanya PKT dan NP)
+  todayOrders.forEach(row => {
+    const pesanan = row[2]; // kolom pesanan
+    if (pesanan && typeof pesanan === 'string') {
+      const lines = pesanan.split('\n');
+      lines.forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        
+        // Parse format: "PKT PA 3" atau "NP DD 2" dll
+        const parts = trimmed.split(/\s+/);
+        if (parts.length >= 2) {
+          const prefix = parts[0];
+          // Hanya hitung item dengan kode PKT atau NP
+          if (prefix === 'PKT' || prefix === 'NP') {
+            if (parts.length >= 3) {
+              const qty = parseInt(parts[2], 10) || 1;
+              totalItemCount += qty;
+            } else {
+              // Jika tidak ada angka, anggap 1
+              totalItemCount += 1;
+            }
+          }
+        }
+      });
+    }
+  });
+
+  return jsonOutput({
+    itemCount: totalItemCount,
+    orderCount: todayOrders.length,
+    date: today.toISOString().split('T')[0]
+  });
 }
 
 /* =========================

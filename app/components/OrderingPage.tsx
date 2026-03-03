@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import MenuModal from './MenuModal';
 import ConfirmationModal from './ConfirmationModal';
 import AlertModal from './AlertModal';
+import LoadingScreen from './LoadingScreen';
 import { API_URLS } from '../lib/api-config';
 
 interface AlertMessage {
@@ -25,7 +26,23 @@ interface StockItem {
   link_status?: string;
 }
 
-export default function OrderingPage() {
+interface ConfigData {
+  jamBuka: string | null;
+  jamTutup: string | null;
+  maxOrders: number;
+}
+
+interface OrderingPageProps {
+  initialConfigData: ConfigData | null;
+  initialStockData: StockItem[];
+  initialOrderCount: number;
+}
+
+export default function OrderingPage({ 
+  initialConfigData, 
+  initialStockData, 
+  initialOrderCount 
+}: OrderingPageProps) {
   const [name, setName] = useState('');
   const [order, setOrder] = useState('');
   const [note, setNote] = useState('');
@@ -44,8 +61,22 @@ export default function OrderingPage() {
   const [stock, setStock] = useState<StockItem[]>([]);
   const orderInputRef = useRef<HTMLTextAreaElement>(null);
 
+  // Loading states for API calls
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingStates, setLoadingStates] = useState({
+    config: false,
+    stock: false,
+    orderCount: false
+  });
+  const [minimumLoadingComplete, setMinimumLoadingComplete] = useState(false);
+  
+  // Polling states
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [isInitialLoadComplete, setIsInitialLoadComplete] = useState(false);
+  const [fastPollingAttempts, setFastPollingAttempts] = useState(0);
+
   // settings loaded from config API
-  const [maxOrders, setMaxOrders] = useState<number>(15);
+  const [maxOrders, setMaxOrders] = useState<number>(initialConfigData?.maxOrders || 15);
   const router = useRouter();
 
   const priceMap: { [key: string]: number } = {
@@ -66,16 +97,9 @@ export default function OrderingPage() {
     'NP KG': 3000,
     'NP JK': 4000,
     'NP NP': 4000,
-    'EXT SI': 3000,
-    'EXT SB': 3000,
-    'EXT TP': 1000,
-    'EXT TH': 1000,
-    'EXT JK': 4000,
-    'EXT TG': 3000,
-    'EXT KG': 3000,
   };
 
-  const VALID_PREFIX = ['PKT', 'NP', 'EXT'];
+  const VALID_PREFIX = ['PKT', 'NP'];
   const codeAliases: { [key: string]: string } = {
     'PAHA ATAS': 'PA',
     'PAHA BAWAH': 'PB',
@@ -584,6 +608,7 @@ export default function OrderingPage() {
   // fetch configuration (jam buka/tutup, max pesanan) from API
   const fetchConfig = async () => {
     try {
+      setLoadingStates(prev => ({ ...prev, config: true }));
       const res = await fetch(API_URLS.CONFIG);
       const data = await res.json();
       console.log('[CONFIG-API] raw config:', data);
@@ -611,6 +636,7 @@ export default function OrderingPage() {
       if (jamBuka) setOpeningTimeText(jamBuka.replace(':', '.'));
       if (jamTutup) setClosingTimeText(jamTutup.replace(':', '.'));
 
+      setLoadingStates(prev => ({ ...prev, config: false }));
       return {
         jamBuka,
         jamTutup,
@@ -618,12 +644,14 @@ export default function OrderingPage() {
       };
     } catch (e) {
       console.error('unable to fetch config', e);
+      setLoadingStates(prev => ({ ...prev, config: false }));
       return null;
     }
   };
 
   const fetchStock = async () => {
     try {
+      setLoadingStates(prev => ({ ...prev, stock: true }));
       // Try to fetch items with links first
       const resWithLinks = await fetch(
         'https://script.google.com/macros/s/AKfycbxEVHfzLO5ghRZg-f5A2KsYROBALRqTcAPQQ9nxX2tmU1KEaZWisoYyvJA19RPRu8Kf/exec?api=itemsWithLinks'
@@ -633,6 +661,7 @@ export default function OrderingPage() {
       if (Array.isArray(dataWithLinks) && dataWithLinks.length > 0) {
         setStock(dataWithLinks);
         console.log('[STOCK-API] items with links data:', dataWithLinks);
+        setLoadingStates(prev => ({ ...prev, stock: false }));
         return dataWithLinks;
       }
       
@@ -645,60 +674,34 @@ export default function OrderingPage() {
         setStock(data);
       }
       console.log('[STOCK-API] fallback raw data:', data);
+      setLoadingStates(prev => ({ ...prev, stock: false }));
       return data;
     } catch (e) {
       console.error('unable to fetch stock', e);
+      setLoadingStates(prev => ({ ...prev, stock: false }));
       return [];
     }
   };
 
-  // hit spreadsheet API to get today's valid order count
-  // hanya hitung baris yang kolom "no_order"-nya terisi
+  // hit spreadsheet API to get today's valid item count (bukan order count)
+  // hitung total item dari semua pesanan hari ini
   const fetchOrderCount = async () => {
     try {
-      const res = await fetch(
-        'https://script.google.com/macros/s/AKfycbxEVHfzLO5ghRZg-f5A2KsYROBALRqTcAPQQ9nxX2tmU1KEaZWisoYyvJA19RPRu8Kf/exec?api=orders'
-      );
+      const res = await fetch(API_URLS.ORDER_ITEM_COUNT);
       const data = await res.json();
-      console.log('[ORDER-API] raw data:', data);
+      console.log('[ORDER-ITEM-COUNT-API] raw data:', data);
 
       let count = 0;
 
-      // data berupa array of object dari ?api=orders
-      if (Array.isArray(data)) {
-        const today = new Date();
-        const y = today.getFullYear();
-        const m = today.getMonth();
-        const d = today.getDate();
-
-        count = data.filter((row: any) => {
-          if (!row || typeof row !== 'object') return false;
-
-          const noOrder = row.no_order;
-          if (
-            noOrder === null ||
-            noOrder === undefined ||
-            String(noOrder).trim() === ''
-          ) {
-            return false;
-          }
-
-          if (!row.waktu) return false;
-          const t = new Date(row.waktu);
-          if (Number.isNaN(t.getTime())) return false;
-
-          return (
-            t.getFullYear() === y &&
-            t.getMonth() === m &&
-            t.getDate() === d
-          );
-        }).length;
+      // data berupa object dengan itemCount dari API orderItemCount
+      if (data && typeof data.itemCount === 'number') {
+        count = data.itemCount;
       }
 
-      console.log('[ORDER-API] valid order count:', count);
+      console.log('[ORDER-ITEM-COUNT-API] total item count:', count);
       return count;
     } catch (e) {
-      console.error('unable to fetch order count', e);
+      console.error('unable to fetch order item count', e);
       return 0;
     }
   };
@@ -737,22 +740,41 @@ export default function OrderingPage() {
     return { isOpen: true, reason: null };
   };
   
-  // cek status buka/tutup saat mount dan polling tiap 15 detik
+  // useEffect untuk mengecek apakah semua loading states sudah selesai
   useEffect(() => {
-    let intervalId: number | undefined;
+    const allApiCallsComplete = !loadingStates.config && !loadingStates.stock && !loadingStates.orderCount;
+    
+    if (allApiCallsComplete) {
+      setIsLoading(false);
+    }
+  }, [loadingStates]);
 
+  // Polling dengan strategi bertahap: cepat di awal, lambat setelahnya
+  useEffect(() => {
     const checkStatus = async () => {
-      await fetchStock();
-      const config = await fetchConfig();
+      console.log(`[POLLING] Attempt ${fastPollingAttempts + 1} - Fetching data...`);
+      
+      if (!isInitialLoadComplete) {
+        setIsLoading(true);
+      }
+      
+      const [stockData, config, orderCount] = await Promise.all([
+        fetchStock(),
+        fetchConfig(),
+        fetchOrderCount()
+      ]);
+      
       if (!config) {
         setIsStoreOpen(false);
         setStatusReason(
           'Tidak dapat mengambil konfigurasi outlet. Silakan coba lagi nanti.'
         );
+        setLoadingStates(prev => ({ ...prev, orderCount: false }));
         return;
       }
 
-      const orderCount = await fetchOrderCount();
+      setLoadingStates(prev => ({ ...prev, orderCount: false }));
+      
       const dynamicStatus = getDynamicStatus(
         {
           jamBuka: config.jamBuka,
@@ -765,25 +787,75 @@ export default function OrderingPage() {
       setIsStoreOpen(dynamicStatus.isOpen);
       setStatusReason(dynamicStatus.reason);
 
+      // Mark initial load as complete after first successful fetch
+      if (!isInitialLoadComplete) {
+        setIsInitialLoadComplete(true);
+        console.log('[POLLING] Initial load complete, switching to slow polling');
+      }
+
       // logging
-      console.log('status check:', {
+      console.log('[POLLING] Status check:', {
         orderCount,
         maxOrders: config.maxOrders,
         withinHours: isWithinOpeningHours(config.jamBuka, config.jamTutup),
         finalStatus: dynamicStatus.isOpen,
         reason: dynamicStatus.reason,
+        attempt: fastPollingAttempts + 1,
+        isInitialComplete: isInitialLoadComplete
       });
     };
 
+    // Initial check
     checkStatus();
-    intervalId = window.setInterval(checkStatus, 15000);
 
+    // Setup polling interval
+    const setupPolling = () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+
+      let interval: number;
+      
+      if (!isInitialLoadComplete && fastPollingAttempts < 10) {
+        // Fast polling: setiap 2 detik untuk 10 kali pertama
+        interval = 2000;
+        console.log('[POLLING] Using fast polling (2s)');
+      } else {
+        // Slow polling: setiap 10 detik setelah initial load complete
+        interval = 10000;
+        console.log('[POLLING] Using slow polling (10s)');
+      }
+
+      const newInterval = setInterval(() => {
+        if (!isInitialLoadComplete) {
+          setFastPollingAttempts(prev => prev + 1);
+        }
+        checkStatus();
+      }, interval);
+
+      setPollingInterval(newInterval);
+    };
+
+    // Setup polling after initial check
+    const timer = setTimeout(setupPolling, 100);
+
+    // Cleanup
     return () => {
-      if (intervalId !== undefined) {
-        clearInterval(intervalId);
+      clearTimeout(timer);
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
       }
     };
-  }, []);
+  }, [isInitialLoadComplete, fastPollingAttempts]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+    };
+  }, [pollingInterval]);
 
   const getStockStatusColor = (status: StockItem['status'] | 'Tidak Tersedia') => {
     switch (status) {
@@ -1082,6 +1154,8 @@ EXT TH 2`}
         onClose={() => setShowConfirmModal(false)}
         total={total}
         onSubmit={handleModalSubmit}
+        isStoreOpen={isStoreOpen}
+        statusReason={statusReason}
       />
       <AlertModal
         isOpen={showAlertModal}
