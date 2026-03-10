@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CORS Fix Test - Order Jukut Online</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        .loading {
+            background-color: #fff3cd;
+            border-color: #ffeaa7;
+            color: #856404;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .url-input {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 CORS Fix Test - Order Jukut Online</h1>
+        <p>This page tests if the CORS headers are working correctly with your Google Apps Script deployment.</p>
+        
+        <div class="test-section">
+            <h3>📝 Setup</h3>
+            <label for="apiUrl">Google Apps Script URL:</label>
+            <input type="text" id="apiUrl" class="url-input" 
+                   placeholder="https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec"
+                   value="https://script.google.com/macros/s/AKfycbwhQv8nQxzbxESJddGaAZQNpVFF20HepUwe8lzddBqtydqvcQyIB0_KdcWFpOaIbLIZ/exec">
+            <p><small>Enter your Google Apps Script web app URL above</small></p>
+        </div>
+
+        <div class="test-section">
+            <h3>🔍 Test Results</h3>
+            <button onclick="runAllTests()">Run All Tests</button>
+            <button onclick="clearResults()">Clear Results</button>
+            
+            <div id="testResults"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Individual Tests</h3>
+            <button onclick="testStock()">Test Stock API</button>
+            <button onclick="testConfig()">Test Config API</button>
+            <button onclick="testItemsWithLinks()">Test Items with Links API</button>
+            <button onclick="testOrders()">Test Orders API</button>
+            <button onclick="testPostRequest()">Test POST Request</button>
+        </div>
+
+        <div class="test-section">
+            <h3>🔧 Debug Information</h3>
+            <div id="debugInfo"></div>
+        </div>
+    </div>
+
+    <script>
+        let testResults = [];
+
+        function getApiUrl() {
+            return document.getElementById('apiUrl').value.trim();
+        }
+
+        function addResult(testName, success, message, data = null) {
+            const result = {
+                testName,
+                success,
+                message,
+                data,
+                timestamp: new Date().toLocaleTimeString()
+            };
+            testResults.push(result);
+            updateResultsDisplay();
+        }
+
+        function updateResultsDisplay() {
+            const container = document.getElementById('testResults');
+            container.innerHTML = '';
+            
+            testResults.forEach(result => {
+                const div = document.createElement('div');
+                div.className = `test-section ${result.success ? 'success' : 'error'}`;
+                div.innerHTML = `
+                    <h4>${result.success ? '✅' : '❌'} ${result.testName}</h4>
+                    <p><strong>Time:</strong> ${result.timestamp}</p>
+                    <p><strong>Message:</strong> ${result.message}</p>
+                    ${result.data ? `<pre>${JSON.stringify(result.data, null, 2)}</pre>` : ''}
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function clearResults() {
+            testResults = [];
+            updateResultsDisplay();
+            document.getElementById('debugInfo').innerHTML = '';
+        }
+
+        async function testApiEndpoint(endpoint, method = 'GET', body = null) {
+            const url = getApiUrl();
+            if (!url) {
+                throw new Error('Please enter your Google Apps Script URL');
+            }
+
+            const options = {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            };
+
+            if (body) {
+                options.body = JSON.stringify(body);
+            }
+
+            const fullUrl = method === 'GET' ? `${url}?api=${endpoint}` : url;
+            
+            console.log(`Testing ${method} ${fullUrl}`, body ? body : '');
+            
+            const response = await fetch(fullUrl, options);
+            
+            // Check CORS headers
+            const corsHeaders = {
+                'access-control-allow-origin': response.headers.get('access-control-allow-origin'),
+                'access-control-allow-methods': response.headers.get('access-control-allow-methods'),
+                'access-control-allow-headers': response.headers.get('access-control-allow-headers')
+            };
+            
+            const data = await response.json();
+            
+            return {
+                status: response.status,
+                statusText: response.statusText,
+                corsHeaders,
+                data
+            };
+        }
+
+        async function testStock() {
+            try {
+                addResult('Stock API', false, 'Testing...', null);
+                const result = await testApiEndpoint('stock');
+                
+                if (result.status === 200) {
+                    const hasValidCors = result.corsHeaders['access-control-allow-origin'] === '*';
+                    addResult('Stock API', hasValidCors, 
+                        hasValidCors ? 'Success! CORS headers present and data loaded.' : 'Data loaded but CORS headers missing.',
+                        { 
+                            status: result.status,
+                            corsHeaders: result.corsHeaders,
+                            dataCount: Array.isArray(result.data) ? result.data.length : 'Not an array',
+                            sampleData: Array.isArray(result.data) ? result.data.slice(0, 2) : result.data
+                        });
+                } else {
+                    addResult('Stock API', false, `HTTP ${result.status}: ${result.statusText}`, result);
+                }
+            } catch (error) {
+                addResult('Stock API', false, `Error: ${error.message}`, { error: error.toString() });
+            }
+        }
+
+        async function testConfig() {
+            try {
+                addResult('Config API', false, 'Testing...', null);
+                const result = await testApiEndpoint('config');
+                
+                if (result.status === 200) {
+                    const hasValidCors = result.corsHeaders['access-control-allow-origin'] === '*';
+                    addResult('Config API', hasValidCors, 
+                        hasValidCors ? 'Success! CORS headers present and config loaded.' : 'Config loaded but CORS headers missing.',
+                        { 
+                            status: result.status,
+                            corsHeaders: result.corsHeaders,
+                            config: result.data
+                        });
+                } else {
+                    addResult('Config API', false, `HTTP ${result.status}: ${result.statusText}`, result);
+                }
+            } catch (error) {
+                addResult('Config API', false, `Error: ${error.message}`, { error: error.toString() });
+            }
+        }
+
+        async function testItemsWithLinks() {
+            try {
+                addResult('Items with Links API', false, 'Testing...', null);
+                const result = await testApiEndpoint('itemsWithLinks');
+                
+                if (result.status === 200) {
+                    const hasValidCors = result.corsHeaders['access-control-allow-origin'] === '*';
+                    addResult('Items with Links API', hasValidCors, 
+                        hasValidCors ? 'Success! CORS headers present and items loaded.' : 'Items loaded but CORS headers missing.',
+                        { 
+                            status: result.status,
+                            corsHeaders: result.corsHeaders,
+                            dataCount: Array.isArray(result.data) ? result.data.length : 'Not an array',
+                            sampleData: Array.isArray(result.data) ? result.data.slice(0, 2) : result.data
+                        });
+                } else {
+                    addResult('Items with Links API', false, `HTTP ${result.status}: ${result.statusText}`, result);
+                }
+            } catch (error) {
+                addResult('Items with Links API', false, `Error: ${error.message}`, { error: error.toString() });
+            }
+        }
+
+        async function testOrders() {
+            try {
+                addResult('Orders API', false, 'Testing...', null);
+                const result = await testApiEndpoint('orders');
+                
+                if (result.status === 200) {
+                    const hasValidCors = result.corsHeaders['access-control-allow-origin'] === '*';
+                    addResult('Orders API', hasValidCors, 
+                        hasValidCors ? 'Success! CORS headers present and orders loaded.' : 'Orders loaded but CORS headers missing.',
+                        { 
+                            status: result.status,
+                            corsHeaders: result.corsHeaders,
+                            dataCount: Array.isArray(result.data) ? result.data.length : 'Not an array',
+                            sampleData: Array.isArray(result.data) ? result.data.slice(0, 2) : result.data
+                        });
+                } else {
+                    addResult('Orders API', false, `HTTP ${result.status}: ${result.statusText}`, result);
+                }
+            } catch (error) {
+                addResult('Orders API', false, `Error: ${error.message}`, { error: error.toString() });
+            }
+        }
+
+        async function testPostRequest() {
+            try {
+                addResult('POST Request Test', false, 'Testing...', null);
+                
+                // Test with a simple batch update (empty array to avoid modifying data)
+                const testBody = [];
+                const result = await testApiEndpoint('', 'POST', testBody);
+                
+                if (result.status === 200) {
+                    const hasValidCors = result.corsHeaders['access-control-allow-origin'] === '*';
+                    addResult('POST Request Test', hasValidCors, 
+                        hasValidCors ? 'Success! POST request works with CORS headers.' : 'POST request works but CORS headers missing.',
+                        { 
+                            status: result.status,
+                            corsHeaders: result.corsHeaders,
+                            response: result.data
+                        });
+                } else {
+                    addResult('POST Request Test', false, `HTTP ${result.status}: ${result.statusText}`, result);
+                }
+            } catch (error) {
+                addResult('POST Request Test', false, `Error: ${error.message}`, { error: error.toString() });
+            }
+        }
+
+        async function runAllTests() {
+            clearResults();
+            
+            const tests = [
+                testStock,
+                testConfig,
+                testItemsWithLinks,
+                testOrders,
+                testPostRequest
+            ];
+            
+            for (const test of tests) {
+                try {
+                    await test();
+                    // Small delay between tests
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                } catch (error) {
+                    console.error('Test failed:', error);
+                }
+            }
+            
+            // Summary
+            const successCount = testResults.filter(r => r.success).length;
+            const totalCount = testResults.length;
+            
+            const debugInfo = document.getElementById('debugInfo');
+            debugInfo.innerHTML = `
+                <h4>📈 Test Summary</h4>
+                <p><strong>Passed:</strong> ${successCount}/${totalCount}</p>
+                <p><strong>Status:</strong> ${successCount === totalCount ? '✅ All tests passed!' : '⚠️ Some tests failed'}</p>
+                <h4>🔍 Troubleshooting</h4>
+                <ul>
+                    <li>If you see "CORS header missing" errors, make sure you deployed the updated script as a NEW deployment</li>
+                    <li>If you see "NetworkError" or "CORS request did not succeed", check your Google Apps Script URL</li>
+                    <li>Make sure the deployment permissions are set to "Anyone" can access</li>
+                    <li>Try clearing your browser cache or using an incognito window</li>
+                </ul>
+            `;
+        }
+
+        // Auto-run tests on page load if URL is provided
+        window.addEventListener('load', () => {
+            const url = getApiUrl();
+            if (url && url.includes('script.google.com')) {
+                setTimeout(() => {
+                    console.log('Auto-running tests...');
+                    runAllTests();
+                }, 1000);
+            }
+        });
+    </script>
+</body>
+</html>
