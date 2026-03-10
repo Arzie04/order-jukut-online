@@ -1,6 +1,5 @@
 'use client';
 
-<<<<<<< HEAD
 import { useState, useEffect, useCallback } from 'react';
 import OrderingPage from './components/OrderingPage';
 import LoadingScreen from './components/LoadingScreen';
@@ -211,76 +210,47 @@ export default function Home() {
     setIsSubmitting(true);
     setAlert(null);
 
+    const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSceaYNjewOa6lWgeab7Zo-pkJ7WUBnox9C8DQ3HX9lh8E5IeQ/formResponse';
+    const orderString = orderItems.map(item => `${item.code} ${item.qty}`).join('\n');
+
+    const formData = new FormData();
+    formData.append('entry.1756210992', name);
+    formData.append('entry.794602475', orderString);
+    formData.append('entry.1229878423', note);
+    formData.append('entry.39066530', total.toString());
+
     try {
-      // Step 1: Get order details for validation
+      // Step 1: Calculate Order ID client-side (Prediction)
+      const orderNumber = await getNextOrderId();
+
+      // Step 2: Fire-and-forget submission to Google Form
+      await fetch(GOOGLE_FORM_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        body: formData,
+      });
+
+      // Step 3: Update Stock via API (Background Process)
       const quantities = getOrderQuantities();
       const stockUpdates = Object.entries(quantities).map(([nama_item, qty]) => ({
         nama_item,
         quantity: qty
       }));
 
-      if (stockUpdates.length === 0) {
-        throw new Error("Pesanan kosong.");
+      console.log("DEBUG: Mengirim update stok ke API:", JSON.stringify(stockUpdates));
+
+      if (stockUpdates.length > 0) {
+        fetch(API_URLS.UPDATE_STOCK, {
+          method: 'POST',
+          mode: 'no-cors', // Penting: agar browser tidak memblokir request ke Google Script
+          headers: {
+            'Content-Type': 'text/plain',
+          },
+          body: JSON.stringify({ updates: stockUpdates })
+        }).catch(e => console.error("Gagal update stok:", e));
       }
 
-      // Step 2: Real-time stock validation and update (blocking call)
-      const stockUpdateResponse = await fetch(API_URLS.UPDATE_STOCK, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ updates: stockUpdates }),
-      });
-
-      if (!stockUpdateResponse.ok) {
-        throw new Error("Gagal terhubung ke server stok. Coba lagi.");
-      }
-
-      const responseText = await stockUpdateResponse.text();
-      
-      // Handle jika respon adalah teks "Success" (dari script sederhana) atau JSON (dari script kompleks)
-      if (responseText.trim() !== "Success") {
-        try {
-          const stockUpdateResult = JSON.parse(responseText);
-          const failedUpdates = stockUpdateResult.results?.filter((res: any) => !res.success);
-
-          if (failedUpdates && failedUpdates.length > 0) {
-            const errorMessages = failedUpdates.map((fail: any) => fail.message || `${fail.nama_item} gagal diupdate`).join(', ');
-            setAlert({
-              type: 'danger',
-              message: `Gagal memproses pesanan: ${errorMessages}. Stok mungkin sudah habis.`
-            });
-            fetchStock(); 
-            return; 
-          }
-        } catch (e) {
-          // Jika bukan JSON dan bukan "Success", cek apakah pesan error
-          if (responseText.includes("Error") || responseText.includes("Gagal")) {
-             throw new Error(responseText);
-          }
-        }
-      }
-
-      // --- If stock update is successful, proceed ---
-
-      // Step 3: Get Order ID and submit to Google Form
-      const orderNumber = await getNextOrderId();
-      const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSceaYNjewOa6lWgeab7Zo-pkJ7WUBnox9C8DQ3HX9lh8E5IeQ/formResponse';
-      const orderString = orderItems.map(item => `${item.code} ${item.qty}`).join('\n');
-
-      const formData = new FormData();
-      formData.append('entry.1756210992', name);
-      formData.append('entry.794602475', orderString);
-      formData.append('entry.1229878423', note);
-      formData.append('entry.39066530', total.toString());
-      formData.append('entry.1172007624', orderNumber); // Add order number to form
-
-      // Fire-and-forget submission to Google Form
-      fetch(GOOGLE_FORM_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        body: formData,
-      }).catch(e => console.error("Google Form submission failed:", e));
-
-      // Step 4: Construct and open WhatsApp message
+      // Step 4: Construct the final WhatsApp message
       const now = new Date();
       const timeString = `${('0' + now.getHours()).slice(-2)}:${('0' + now.getMinutes()).slice(-2)}:${('0' + now.getSeconds()).slice(-2)}`;
 
@@ -319,7 +289,7 @@ export default function Home() {
       setShowCalcResult(false);
 
     } catch (error: any) {
-      console.error('Submission Error:', error);
+      console.error('Google Form Submission Error:', error);
       setAlert({
         type: 'danger',
         message: `Terjadi kesalahan saat mengirim pesanan: ${error.message}`
@@ -401,8 +371,7 @@ export default function Home() {
 
   const fetchStock = useCallback(async () => {
     try {
-      // Tambahkan timestamp untuk mencegah caching browser agar data selalu realtime
-      const res = await fetch(`${API_URLS.STOCK}&_t=${new Date().getTime()}`);
+      const res = await fetch('https://script.google.com/macros/s/AKfycbxEVHfzLO5ghRZg-f5A2KsYROBALRqTcAPQQ9nxX2tmU1KEaZWisoYyvJA19RPRu8Kf/exec?api=stock');
       const data = await res.json();
       if (Array.isArray(data)) setStock(data);
     } catch (e) {
@@ -425,15 +394,6 @@ export default function Home() {
     };
     loadInitialData();
   }, [fetchConfigAndOrders, fetchStock]);
-
-  // Effect untuk melakukan polling stok setiap 5 detik
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      fetchStock();
-    }, 5000);
-
-    return () => clearInterval(intervalId);
-  }, [fetchStock]);
 
   return (
     <>
@@ -466,189 +426,5 @@ export default function Home() {
         />
       </div>
     </>
-=======
-import { useState, useEffect } from 'react';
-import OrderingPage from './components/OrderingPage';
-import LoadingScreen from './components/LoadingScreen';
-import { API_URLS } from './lib/api-config';
-
-interface StockItem {
-  id_item: string;
-  nama_item: string;
-  stok: number;
-  status: 'Tersedia' | 'Hampir Habis' | 'Terjual Habis';
-  catatan: string;
-  cell_nama?: string;
-  cell_stok?: string;
-  cell_status?: string;
-  link_stok?: string;
-  link_status?: string;
-}
-
-interface ConfigData {
-  jamBuka: string | null;
-  jamTutup: string | null;
-  maxOrders: number;
-}
-
-export default function Home() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadingStates, setLoadingStates] = useState({
-    config: true,
-    stock: true,
-    itemCount: true
-  });
-  const [minimumLoadingComplete, setMinimumLoadingComplete] = useState(false);
-  
-  // Data yang akan dikirim ke OrderingPage
-  const [configData, setConfigData] = useState<ConfigData | null>(null);
-  const [stockData, setStockData] = useState<StockItem[]>([]);
-  const [orderCount, setOrderCount] = useState<number>(0);
-
-  // fetch configuration (jam buka/tutup, max pesanan) from API
-  const fetchConfig = async () => {
-    try {
-      setLoadingStates(prev => ({ ...prev, config: true }));
-      const res = await fetch(API_URLS.CONFIG);
-      const data = await res.json();
-      console.log('[CONFIG-API] raw config:', data);
-      
-      const jamBuka =
-        typeof data.jam_buka === 'string' && data.jam_buka.trim() !== ''
-          ? data.jam_buka.trim()
-          : null;
-      const jamTutup =
-        typeof data.jam_tutup === 'string' && data.jam_tutup.trim() !== ''
-          ? data.jam_tutup.trim()
-          : null;
-      
-      let cfgMax = 15;
-      if (typeof data.max_pesanan === 'number') {
-        cfgMax = data.max_pesanan;
-      } else if (data.max_pesanan != null) {
-        const parsed = parseInt(String(data.max_pesanan), 10);
-        if (!Number.isNaN(parsed) && parsed > 0) {
-          cfgMax = parsed;
-        }
-      }
-
-      const config = {
-        jamBuka,
-        jamTutup,
-        maxOrders: cfgMax,
-      };
-      
-      setConfigData(config);
-      setLoadingStates(prev => ({ ...prev, config: false }));
-      return config;
-    } catch (e) {
-      console.error('unable to fetch config', e);
-      setLoadingStates(prev => ({ ...prev, config: false }));
-      return null;
-    }
-  };
-
-  const fetchStock = async () => {
-    try {
-      setLoadingStates(prev => ({ ...prev, stock: true }));
-      // Try to fetch items with links first
-      const resWithLinks = await fetch(
-        'https://script.google.com/macros/s/AKfycbxEVHfzLO5ghRZg-f5A2KsYROBALRqTcAPQQ9nxX2tmU1KEaZWisoYyvJA19RPRu8Kf/exec?api=itemsWithLinks'
-      );
-      const dataWithLinks = await resWithLinks.json();
-    
-      if (Array.isArray(dataWithLinks) && dataWithLinks.length > 0) {
-        setStockData(dataWithLinks);
-        console.log('[STOCK-API] items with links data:', dataWithLinks);
-        setLoadingStates(prev => ({ ...prev, stock: false }));
-        return dataWithLinks;
-      }
-    
-      // Fallback to regular stock API
-      const res = await fetch(
-        'https://script.google.com/macros/s/AKfycbxEVHfzLO5ghRZg-f5A2KsYROBALRqTcAPQQ9nxX2tmU1KEaZWisoYyvJA19RPRu8Kf/exec?api=stock'
-      );
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setStockData(data);
-      }
-      console.log('[STOCK-API] fallback raw data:', data);
-      setLoadingStates(prev => ({ ...prev, stock: false }));
-      return data;
-    } catch (e) {
-      console.error('unable to fetch stock', e);
-      setLoadingStates(prev => ({ ...prev, stock: false }));
-      return [];
-    }
-  };
-
-  // hit spreadsheet API to get today's total item count (per item, not per customer)
-  const fetchOrderCount = async () => {
-    try {
-      const res = await fetch(API_URLS.ORDER_ITEM_COUNT);
-      const data = await res.json();
-      console.log('[ORDER-ITEM-COUNT-API] raw data:', data);
-      
-      let count = 0;
-      if (data && typeof data === 'object') {
-        // API orderItemCount returns { itemCount, orderCount, date }
-        count = data.itemCount || 0;
-      }
-      
-      console.log('[ORDER-ITEM-COUNT-API] total item count:', count);
-      setOrderCount(count);
-      setLoadingStates(prev => ({ ...prev, itemCount: false }));
-      return count;
-    } catch (e) {
-      console.error('unable to fetch item count', e);
-      setLoadingStates(prev => ({ ...prev, itemCount: false }));
-      return 0;
-    }
-  };
-
-  // useEffect untuk minimum loading timer 5 detik
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setMinimumLoadingComplete(true);
-    }, 5000);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  // useEffect untuk mengecek apakah semua loading states sudah selesai
-  useEffect(() => {
-    const allApiCallsComplete = !loadingStates.config && !loadingStates.stock && !loadingStates.itemCount;
-    
-    if (allApiCallsComplete && minimumLoadingComplete) {
-      setIsLoading(false);
-    }
-  }, [loadingStates, minimumLoadingComplete]);
-
-  // Load data saat component mount
-  useEffect(() => {
-    const loadData = async () => {
-      await Promise.all([
-        fetchConfig(),
-        fetchStock(),
-        fetchOrderCount()
-      ]);
-    };
-
-    loadData();
-  }, []);
-
-  // Tampilkan loading screen selama loading
-  if (isLoading) {
-    return <LoadingScreen isLoading={true} />;
-  }
-
-  // Tampilkan OrderingPage setelah loading selesai dengan data yang sudah dimuat
-  return (
-    <OrderingPage 
-      initialConfigData={configData}
-      initialStockData={stockData}
-      initialOrderCount={orderCount}
-    />
->>>>>>> 6a18c5d82208a9419dde3fabd3415288b0111300
   );
 }

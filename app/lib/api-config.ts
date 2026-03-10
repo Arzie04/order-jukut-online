@@ -12,12 +12,8 @@ export const API_CONFIG = {
     ORDER_ITEM_COUNT: 'orderItemCount',
     STOCK: 'stock', 
     CONFIG: 'config',
-<<<<<<< HEAD
     ITEMS_WITH_LINKS: 'itemsWithLinks',
     UPDATE_STOCK: 'updateStock'
-=======
-    ITEMS_WITH_LINKS: 'itemsWithLinks'
->>>>>>> 6a18c5d82208a9419dde3fabd3415288b0111300
   }
 } as const;
 
@@ -36,10 +32,6 @@ export const API_URLS = {
   ORDER_ITEM_COUNT: buildApiUrl(API_CONFIG.ENDPOINTS.ORDER_ITEM_COUNT),
   STOCK: buildApiUrl(API_CONFIG.ENDPOINTS.STOCK),
   CONFIG: buildApiUrl(API_CONFIG.ENDPOINTS.CONFIG),
-<<<<<<< HEAD
   ITEMS_WITH_LINKS: buildApiUrl(API_CONFIG.ENDPOINTS.ITEMS_WITH_LINKS),
   UPDATE_STOCK: buildApiUrl(API_CONFIG.ENDPOINTS.UPDATE_STOCK)
-=======
-  ITEMS_WITH_LINKS: buildApiUrl(API_CONFIG.ENDPOINTS.ITEMS_WITH_LINKS)
->>>>>>> 6a18c5d82208a9419dde3fabd3415288b0111300
 } as const;
