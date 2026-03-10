@@ -9,7 +9,7 @@ import { StockItem, OrderItem, AlertMessage } from './components/OrderingPage'; 
 const priceMap: { [key: string]: number } = {
   'PKT PA': 15000, 'PKT PB': 15000, 'PKT DD': 15000, 'PKT SY': 15000, 'PKT ATI': 13000,
   'PKT KL': 13000, 'PKT TD': 11000, 'PKT TT': 11000, 'NP PA': 11000, 'NP PB': 11000,
-  'NP DD': 11000, 'NP SY': 11000, 'NP TD': 7000, 'NP ATI': 4000, 'NP KL': 4000, 'EXT NDJ': 5000, 'EXT NSP': 4000, 'EXT SI': 3000, 'EXT SB': 3000, 'EXT TP': 1000,
+  'NP DD': 11000, 'NP SY': 11000, 'NP TD': 7000, 'NP ATI': 9000, 'NP KL': 9000, 'EXT NDJ': 5000, 'EXT NSP': 4000, 'EXT SI': 3000, 'EXT SB': 3000, 'EXT TP': 1000,
   'PKT PA NDJ': 17000, 'PKT PB NDJ': 17000, 'PKT DD NDJ': 17000, 'PKT SY NDJ': 17000,
   'PKT ATI NDJ': 15000, 'PKT KL NDJ': 15000, 'PKT TD NDJ': 13000, 'PKT TT NDJ': 13000,
   'EXT TH': 1000, 'EXT JK': 4000, 'EXT TG': 3000, 'EXT KG': 3000, 
