@@ -9,7 +9,10 @@ interface ConfirmationModalProps {
   onSubmit: () => void;
   isStoreOpen: boolean;
   statusReason: string | null;
+<<<<<<< HEAD
   isSubmitting?: boolean;
+=======
+>>>>>>> 6a18c5d82208a9419dde3fabd3415288b0111300
 }
 
 export default function ConfirmationModal({
@@ -19,7 +22,10 @@ export default function ConfirmationModal({
   onSubmit,
   isStoreOpen,
   statusReason,
+<<<<<<< HEAD
   isSubmitting = false,
+=======
+>>>>>>> 6a18c5d82208a9419dde3fabd3415288b0111300
 }: ConfirmationModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const [showQris, setShowQris] = useState(false);
@@ -85,12 +91,21 @@ export default function ConfirmationModal({
   return (
     <div
       ref={modalRef}
+<<<<<<< HEAD
       className="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={handleBackdropClick}
     >
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all scale-100">
         {/* Modal Header */}
         <div className="border-b border-gray-100 px-6 py-4 flex justify-between items-center">
+=======
+      className="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+      onClick={handleBackdropClick}
+    >
+      <div className="bg-white rounded-lg shadow-lg max-w-md w-full">
+        {/* Modal Header */}
+        <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+>>>>>>> 6a18c5d82208a9419dde3fabd3415288b0111300
           <h5 className="text-xl font-bold">Konfirmasi Pembayaran</h5>
           <button
             onClick={onClose}
@@ -143,16 +158,24 @@ export default function ConfirmationModal({
             </>
           )}
         </div>        {/* Modal Footer */}
+<<<<<<< HEAD
         <div className="border-t border-gray-100 px-6 py-4 flex justify-end gap-3">
           <button
             onClick={onClose}
             className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition font-semibold"
+=======
+        <div className="border-t border-gray-200 px-6 py-4 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
+>>>>>>> 6a18c5d82208a9419dde3fabd3415288b0111300
           >
             {!isStoreOpen ? 'Tutup' : 'Batal'}
           </button>
           {isStoreOpen && (
             <button
               onClick={onSubmit}
+<<<<<<< HEAD
               disabled={!buttonEnabled || isSubmitting}
               className={`px-5 py-2.5 rounded-xl font-bold transition shadow-md ${
                 buttonEnabled && !isSubmitting
@@ -165,6 +188,16 @@ export default function ConfirmationModal({
                 : buttonEnabled
                 ? 'Sudah Bayar'
                 : `Tunggu ${buttonCountdown}s`}
+=======
+              disabled={!buttonEnabled}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                buttonEnabled
+                  ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
+                  : 'bg-gray-400 text-white cursor-not-allowed'
+              }`}
+            >
+              {buttonEnabled ? 'Sudah Bayar' : `Tunggu ${buttonCountdown}s`}
+>>>>>>> 6a18c5d82208a9419dde3fabd3415288b0111300
             </button>
           )}
         </div>

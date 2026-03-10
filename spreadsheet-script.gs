@@ -96,7 +96,11 @@ function getOrderItemCount() {
     );
   });
 
+<<<<<<< HEAD
   // Hitung total item dari semua pesanan hari ini (PKT dan NP)
+=======
+  // Hitung total item dari semua pesanan hari ini (hanya PKT dan NP)
+>>>>>>> 6a18c5d82208a9419dde3fabd3415288b0111300
   todayOrders.forEach(row => {
     const pesanan = row[2]; // kolom pesanan
     if (pesanan && typeof pesanan === 'string') {
@@ -105,11 +109,19 @@ function getOrderItemCount() {
         const trimmed = line.trim();
         if (!trimmed) return;
         
+<<<<<<< HEAD
         // Parse format: "PKT PA 3" dll
         const parts = trimmed.split(/\s+/);
         if (parts.length >= 2) {
           const prefix = parts[0];
           // Hitung item dengan kode PKT dan NP saja (tidak termasuk EXT)
+=======
+        // Parse format: "PKT PA 3" atau "NP DD 2" dll
+        const parts = trimmed.split(/\s+/);
+        if (parts.length >= 2) {
+          const prefix = parts[0];
+          // Hanya hitung item dengan kode PKT atau NP
+>>>>>>> 6a18c5d82208a9419dde3fabd3415288b0111300
           if (prefix === 'PKT' || prefix === 'NP') {
             if (parts.length >= 3) {
               const qty = parseInt(parts[2], 10) || 1;
@@ -176,7 +188,11 @@ function getItemsWithLinks() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(STOCK_SHEET_NAME);
   
   if (!sheet) {
+<<<<<<< HEAD
     return jsonOutput({ error: "Sheet \"${STOCK_SHEET_NAME}\" tidak ditemukan" });
+=======
+    return jsonOutput({ error: `Sheet "${STOCK_SHEET_NAME}" tidak ditemukan` });
+>>>>>>> 6a18c5d82208a9419dde3fabd3415288b0111300
   }
 
   const lastRow = sheet.getLastRow();
@@ -257,7 +273,11 @@ function orderStock(body) {
     if (!sheet) {
       return jsonOutput({
         success: false,
+<<<<<<< HEAD
         message: "Sheet \"${STOCK_SHEET_NAME}\" tidak ditemukan"
+=======
+        message: `Sheet "${STOCK_SHEET_NAME}" tidak ditemukan`
+>>>>>>> 6a18c5d82208a9419dde3fabd3415288b0111300
       });
     }
 
@@ -341,7 +361,11 @@ function updateStockBatch(stockUpdates) {
     if (!sheet) {
       return jsonOutput({
         success: false,
+<<<<<<< HEAD
         message: "Sheet \"${STOCK_SHEET_NAME}\" tidak ditemukan"
+=======
+        message: `Sheet "${STOCK_SHEET_NAME}" tidak ditemukan`
+>>>>>>> 6a18c5d82208a9419dde3fabd3415288b0111300
       });
     }
 
@@ -383,7 +407,11 @@ function updateStockBatch(stockUpdates) {
                 success: false,
                 id_item: idItem,
                 nama_item: namaItem,
+<<<<<<< HEAD
                 message: "Stok ${namaItem} tidak mencukupi (tersedia: ${currentStok}, diminta: ${update.quantity})"
+=======
+                message: `Stok ${namaItem} tidak mencukupi (tersedia: ${currentStok}, diminta: ${update.quantity})`
+>>>>>>> 6a18c5d82208a9419dde3fabd3415288b0111300
               });
               continue;
             }
@@ -480,6 +508,7 @@ function testGetOrders() {
 function testGetConfig() {
   const result = getConfig();
   console.log(result.getContent());
+<<<<<<< HEAD
 }
 
 /* =========================
@@ -525,3 +554,6 @@ function testItemCountLogic() {
   
   return totalItemCount;
 }
+=======
+}
+>>>>>>> 6a18c5d82208a9419dde3fabd3415288b0111300
