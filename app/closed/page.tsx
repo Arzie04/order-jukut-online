@@ -7,6 +7,7 @@ import Image from 'next/image';
 const ClosedPage = () => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isInteracted, setIsInteracted] = useState(false);
+  const fadeIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleInteraction = useCallback(() => {
     if (!isInteracted && audioRef.current) {
@@ -16,28 +17,22 @@ const ClosedPage = () => {
       audio.volume = 0;
       audio.play().catch(error => console.error("Audio play failed:", error));
 
-      const fadeAudioIn = setInterval(() => {
-        // Increase volume by a small step
-        if (audio.volume < 0.99) { // Use < 0.99 to avoid floating point issues
-          let newVolume = audio.volume + 0.05;
-          if (newVolume > 1) {
-              newVolume = 1;
-          }
-          audio.volume = newVolume;
+      if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+      fadeIntervalRef.current = setInterval(() => {
+        if (audio.volume < 0.99) {
+          audio.volume = Math.min(1, audio.volume + 0.05);
         } else {
           audio.volume = 1;
-          // Volume is at 1.0, clear the interval
-          clearInterval(fadeAudioIn);
+          if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
         }
-      }, 100); // Run every 100ms, takes 2 seconds to reach full volume
+      }, 100);
     }
   }, [isInteracted]);
   
-  // Optional: Listen for keyboard interaction as well
+  // Listen for keyboard interaction
   useEffect(() => {
     const handleKeydown = (e: KeyboardEvent) => {
       if (e.key === 'Enter' || e.key === ' ') {
-        // Prevent browser default action for spacebar (scrolling)
         e.preventDefault();
         handleInteraction();
       }
@@ -47,6 +42,51 @@ const ClosedPage = () => {
       window.removeEventListener('keydown', handleKeydown);
     };
   }, [handleInteraction]);
+
+  // Listen for page visibility changes
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!audioRef.current) return;
+      const audio = audioRef.current;
+
+      if (fadeIntervalRef.current) {
+        clearInterval(fadeIntervalRef.current);
+      }
+
+      if (document.hidden) {
+        fadeIntervalRef.current = setInterval(() => {
+          if (audio.volume > 0.01) {
+            audio.volume = Math.max(0, audio.volume - 0.05);
+          } else {
+            audio.volume = 0;
+            audio.pause();
+            if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+          }
+        }, 50);
+      } else {
+        if (isInteracted) {
+          audio.play().catch(e => console.error("Audio play failed on visibility change:", e));
+          fadeIntervalRef.current = setInterval(() => {
+            if (audio.volume < 0.99) {
+              audio.volume = Math.min(1, audio.volume + 0.05);
+            } else {
+              audio.volume = 1;
+              if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+            }
+          }, 50);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (fadeIntervalRef.current) {
+        clearInterval(fadeIntervalRef.current);
+      }
+    };
+  }, [isInteracted]);
 
 
   return (
