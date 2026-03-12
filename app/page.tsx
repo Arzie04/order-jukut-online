@@ -45,6 +45,14 @@ export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [whatsappUrl, setWhatsappUrl] = useState('');
   const [whatsappMessage, setWhatsappMessage] = useState('');
+  const [isRedirecting, setIsRedirecting] = useState(false);
+
+  useEffect(() => {
+    if (openingTimeText === '00.00' && closingTimeText === '00.00') {
+      setIsRedirecting(true);
+      window.location.href = '/closed';
+    }
+  }, [openingTimeText, closingTimeText]);
 
   // --- LOGIC MOVED FROM OrderingPage ---
 
@@ -397,8 +405,8 @@ export default function Home() {
 
   return (
     <>
-      <LoadingScreen isLoading={pageIsLoading} />
-      <div style={{ display: pageIsLoading ? 'none' : 'block' }}>
+      <LoadingScreen isLoading={pageIsLoading || isRedirecting} />
+      <div style={{ display: pageIsLoading || isRedirecting ? 'none' : 'block' }}>
         <OrderingPage
           name={name}
           setName={setName}
