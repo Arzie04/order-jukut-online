@@ -28,7 +28,8 @@ const ClosedPage = () => {
       setIsInteracted(true);
       
       const audio = audioRef.current;
-      audio.volume = 0;
+      audio.muted = false;
+      audio.currentTime = 0;
       audio.play().catch(error => console.error("Audio play failed:", error));
 
       if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
@@ -60,7 +61,7 @@ const ClosedPage = () => {
   // Listen for page visibility changes
   useEffect(() => {
     // Jangan jalankan efek ini jika halaman dinonaktifkan
-    if (closedPageStatus === 'on') return;
+    if (closedPageStatus === 'off') return;
 
     const handleVisibilityChange = () => {
       if (!audioRef.current) return;
@@ -142,7 +143,7 @@ const ClosedPage = () => {
         }
       `}</style>
       
-      <audio ref={audioRef} src="/sound/Lebaran/fiikuri-eid-mubarak-music-ramadan-ied-al-fitr-vibes-music-318125.mp3" loop hidden />
+      <audio ref={audioRef} src="/sound/Lebaran/fiikuri-eid-mubarak-music-ramadan-ied-al-fitr-vibes-music-318125.mp3" loop hidden muted playsInline />
 
       {/* Interaction Overlay */}
       {!isInteracted && (
