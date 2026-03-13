@@ -25,6 +25,7 @@ interface OrderFormProps {
   handleAddOrUpdateItem: (code: string, qty?: number) => void;
   total: number;
   priceMap: { [key: string]: number };
+  isNdjOutOfStock?: boolean;
 }
 
 export default function OrderForm({
@@ -42,6 +43,7 @@ export default function OrderForm({
   handleAddOrUpdateItem,
   total,
   priceMap,
+  isNdjOutOfStock,
 }: OrderFormProps) {
 
   const handleUpdateQty = (code: string, newQty: number) => {
@@ -60,16 +62,16 @@ export default function OrderForm({
   };
 
   return (
-    <form className="mt-6 grid grid-cols-1 lg:grid-cols-12 gap-y-4 lg:gap-x-8 lg:gap-y-0 items-start">
+    <form className="mt-2 grid grid-cols-1 lg:grid-cols-12 gap-y-6 lg:gap-x-8 lg:gap-y-0 items-start">
       {/* 1. Name Input */}
       {/* Mobile: Urutan 1. Desktop: Kolom Kanan, Baris 1 */}
       <div className="lg:col-span-4 lg:col-start-9 lg:row-start-1">
-        <div className="lg:bg-white lg:p-6 lg:rounded-t-xl lg:shadow-sm lg:border lg:border-gray-100 lg:border-b-0">
-          <label htmlFor="nameInput" className="block font-semibold mb-2">
+        <div className="lg:bg-transparent lg:p-6 lg:rounded-t-xl">
+          <label htmlFor="nameInput" className="block font-semibold mb-2 text-gray-800">
             Nama Pemesan
           </label>
-          <div className="flex items-center border border-gray-300 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-green-500 focus-within:border-transparent transition-all">
-            <span className="bg-gray-50 px-4 py-3 text-gray-500">👤</span>
+          <div className="flex items-center border border-gray-300/50 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-[#66BB6A] transition-all">
+            <span className="bg-white/20 px-4 py-3 text-gray-700">👤</span>
             <input
               type="text"
               id="nameInput"
@@ -77,7 +79,7 @@ export default function OrderForm({
               placeholder="Masukkan nama Anda"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="flex-1 px-4 py-3 outline-none bg-white"
+              className="flex-1 px-4 py-3 outline-none bg-white/50"
             />
           </div>
         </div>
@@ -86,24 +88,24 @@ export default function OrderForm({
       {/* 2. Menu Grid */}
       {/* Mobile: Urutan 2. Desktop: Kolom Kiri, Span ke bawah */}
       <div className="lg:col-span-8 lg:row-start-1 lg:row-span-5">
-        <div className="lg:bg-white lg:p-6 lg:rounded-xl lg:shadow-sm lg:border lg:border-gray-100">
+        <div className="bg-black/10 p-4 md:p-6 rounded-2xl border border-white/20">
           <div className="flex justify-between items-center mb-4">
             <label className="block font-semibold lg:text-xl lg:font-bold text-gray-800">
-               <span className="lg:hidden">Pesanan</span>
+               <span className="lg:hidden">Pilih Menu</span>
                <span className="hidden lg:inline">Daftar Menu</span>
             </label>
           </div>
           
-          <OrderButtonGrid onAddItem={handleAddItem} />
+          <OrderButtonGrid onAddItem={handleAddItem} isNdjOutOfStock={isNdjOutOfStock} />
         </div>
       </div>
 
       {/* 3. Current Order (Cart) */}
       {/* Mobile: Urutan 3. Desktop: Kolom Kanan, Baris 2 */}
       <div className="lg:col-span-4 lg:col-start-9 lg:row-start-2">
-         <div className="lg:bg-white lg:px-6 lg:py-2 lg:shadow-sm lg:border-x lg:border-gray-100">
+         <div className="lg:bg-transparent lg:px-6 lg:py-2">
             <CurrentOrder order={orderItems} onUpdateQty={handleUpdateQty} total={total} priceMap={priceMap} />
-            <small className="text-gray-600 block mt-2">
+            <small className="text-gray-700 block mt-2">
               Klik tombol untuk menambah pesanan. Anda bisa mengatur jumlah di "Pesanan Anda".
             </small>
          </div>
@@ -112,8 +114,8 @@ export default function OrderForm({
       {/* 4. Note Input */}
       {/* Mobile: Urutan 4. Desktop: Kolom Kanan, Baris 3 */}
       <div className="lg:col-span-4 lg:col-start-9 lg:row-start-3">
-        <div className="lg:bg-white lg:px-6 lg:py-4 lg:shadow-sm lg:border-x lg:border-gray-100">
-          <label htmlFor="noteInput" className="block font-semibold mb-2">
+        <div className="lg:bg-transparent lg:px-6 lg:py-4">
+          <label htmlFor="noteInput" className="block font-semibold mb-2 text-gray-800">
             Catatan (opsional)
           </label>
           <textarea
@@ -122,7 +124,7 @@ export default function OrderForm({
             placeholder="Catatan tambahan contoh: sambal dipisah, diambil jam 17.00"
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none resize-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+            className="w-full px-4 py-3 border border-gray-300/50 rounded-xl outline-none resize-none bg-white/50 focus:ring-2 focus:ring-[#66BB6A] transition-all"
           />
         </div>
       </div>
@@ -130,8 +132,8 @@ export default function OrderForm({
       {/* 5. Warning & Submit */}
       {/* Mobile: Urutan 5. Desktop: Kolom Kanan, Baris 4 */}
       <div className="lg:col-span-4 lg:col-start-9 lg:row-start-4">
-        <div className="lg:bg-white lg:p-6 lg:rounded-b-xl lg:shadow-sm lg:border lg:border-gray-100 lg:border-t-0 space-y-4">
-          <div className="text-center text-sm text-gray-600 py-2 bg-gray-50 rounded-lg">
+        <div className="lg:bg-transparent lg:p-6 lg:rounded-b-xl space-y-4 pb-8 lg:pb-6">
+          <div className="text-center text-sm text-gray-700 py-2 bg-white/20 rounded-lg">
             Pastikan pesanan benar, kesalahan pesanan karena kesalahan tulis bukan
             tanggung jawab kami
           </div>
@@ -140,9 +142,9 @@ export default function OrderForm({
             type="button"
             onClick={handleOpenConfirm}
             disabled={!isStoreOpen}
-            className={`w-full py-4 font-bold text-lg rounded-xl transition shadow-lg active:scale-[0.98] ${
+            className={`w-full py-4 font-bold text-lg rounded-xl transition shadow-lg active:scale-[0.98] block ${
               isStoreOpen
-                ? 'bg-gradient-to-r from-green-600 to-green-500 text-white hover:from-green-700 hover:to-green-600'
+                ? 'bg-[#2E7D32] text-white hover:opacity-90'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
           >
@@ -160,7 +162,7 @@ export default function OrderForm({
               href="https://forms.gle/chawC4pDJV7KLApY6"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-block px-6 py-2 bg-yellow-400 text-yellow-900 rounded-lg hover:bg-yellow-500 transition text-sm font-bold shadow-md"
+              className="inline-block px-6 py-2 bg-[#D4E157] text-[#2E7D32] rounded-lg hover:opacity-90 transition text-sm font-bold shadow-md"
             >
               💬 Kritik & Saran
             </a>

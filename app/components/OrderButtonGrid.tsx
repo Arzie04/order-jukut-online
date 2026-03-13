@@ -47,15 +47,34 @@ const menuItems = {
 
 interface OrderButtonGridProps {
   onAddItem: (code: string) => void;
+  isNdjOutOfStock?: boolean;
 }
 
-export default function OrderButtonGrid({ onAddItem }: OrderButtonGridProps) {
+// Mapping from item code to image source
+const imageMap: { [key:string]: string } = {
+    'PKT PA': '/Foto Produk/Paket Paha Atas.png',
+    'PKT PB': '/Foto Produk/Paket Paha Bawah.png',
+    'PKT DD': '/Foto Produk/Paket Dada.png',
+    'PKT SY': '/Foto Produk/Paket Sayap.png',
+    'PKT ATI': '/Foto Produk/Paket Ati Ampela.png',
+    'PKT KL': '/Foto Produk/Paket Kulit.png',
+    'PKT TT': '/Foto Produk/Paket Tahu Tempe.png',
+    'PKT PA NDJ': '/Foto Produk/Paket Paha Atas.png',
+    'PKT PB NDJ': '/Foto Produk/Paket Paha Bawah.png',
+    'PKT DD NDJ': '/Foto Produk/Paket Dada.png',
+    'PKT SY NDJ': '/Foto Produk/Paket Sayap.png',
+    'PKT ATI NDJ': '/Foto Produk/Paket Ati Ampela.png',
+    'PKT KL NDJ': '/Foto Produk/Paket Kulit.png',
+    'PKT TT NDJ': '/Foto Produk/Paket Tahu Tempe.png',
+};
+
+export default function OrderButtonGrid({ onAddItem, isNdjOutOfStock }: OrderButtonGridProps) {
   const [activeCategory, setActiveCategory] = useState('Paket');
 
   return (
     <div>
       <div 
-        className="flex p-1 bg-gray-100 rounded-xl mb-4 sticky top-0 z-20 shadow-sm mx-[-0.5rem] md:mx-0"
+        className="flex p-1 bg-white/30 rounded-xl mb-4 sticky top-24 z-20 shadow-sm mx-[-0.5rem] md:mx-0"
       >
         {Object.keys(menuItems).map(category => (
           <button
@@ -64,25 +83,49 @@ export default function OrderButtonGrid({ onAddItem }: OrderButtonGridProps) {
             onClick={() => setActiveCategory(category)}
             className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all duration-200 ${
               activeCategory === category
-                ? 'bg-white text-green-700 shadow-sm scale-[1.02]'
-                : 'text-gray-500 hover:text-gray-700'
+                ? 'bg-white text-[#2E7D32] shadow-sm'
+                : 'text-gray-600 hover:text-gray-800'
             }`}
           >
             {category}
           </button>
         ))}
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-        {menuItems[activeCategory as keyof typeof menuItems].map((item, index) => (
-          <button
-            type="button"
-            key={item.code}
-            onClick={() => onAddItem(item.code)}
-            className="bg-white hover:bg-gray-50 text-gray-800 font-semibold py-3 px-3 border border-gray-200 rounded-xl shadow-sm text-xs md:text-sm transition-all duration-100 active:scale-95 active:bg-green-50 active:border-green-500 flex flex-col items-center justify-center text-center h-full min-h-[60px]"
-          >
-            {item.name}
-          </button>
-        ))}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        {menuItems[activeCategory as keyof typeof menuItems].map((item) => {
+          const imageSrc = imageMap[item.code];
+          
+          if (imageSrc) {
+            return (
+              <button
+                type="button"
+                key={item.code}
+                onClick={() => onAddItem(item.code)}
+                disabled={isNdjOutOfStock && activeCategory === 'Paket NDJ'}
+                className="bg-white/50 border border-white/30 rounded-2xl shadow-sm text-center transition-all duration-150 active:scale-95 active:border-[#D4E157] overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="w-full h-24 bg-black/10">
+                  <img src={imageSrc} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" />
+                </div>
+                <div className="p-2">
+                  <p className="text-gray-800 font-semibold text-xs md:text-sm">{item.name}</p>
+                </div>
+              </button>
+            );
+          }
+
+          return (
+            <button
+              type="button"
+              key={item.code}
+              onClick={() => onAddItem(item.code)}
+              disabled={isNdjOutOfStock && activeCategory === 'Paket NDJ'}
+              className="bg-white/50 hover:bg-white/70 text-gray-800 font-semibold py-3 px-3 border border-white/30 rounded-xl shadow-sm text-xs md:text-sm transition-all duration-100 active:scale-95 active:border-[#D4E157] flex flex-col items-center justify-center text-center h-full min-h-[60px] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {item.name}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

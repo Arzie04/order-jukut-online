@@ -2,9 +2,9 @@
 
 export default function OrderInstructions({ openingTimeText, closingTimeText }: { openingTimeText: string, closingTimeText: string }) {
   return (
-    <div className="bg-blue-50 p-4 rounded-xl mb-6 text-sm border border-blue-100">
-      <div className="text-center mb-2 font-bold">
-        ‼️ HARAP DIBACA SEBELUM PESAN ‼️
+    <div className="bg-yellow-50 p-4 rounded-xl mb-6 text-sm border border-yellow-200">
+      <div className="text-center mb-2 font-bold text-yellow-800">
+        ⚠️ HARAP DIBACA SEBELUM PESAN ⚠️
       </div>
       <div className="text-center mb-3 font-semibold text-red-600">
         Pemesanan online hanya dilayani pukul {openingTimeText} - {closingTimeText}{' '}
@@ -12,8 +12,8 @@ export default function OrderInstructions({ openingTimeText, closingTimeText }: 
       </div>
 
       <div className="mb-3">
-        <h6 className="font-bold mb-1">CARA MEMESAN</h6>
-        <ul className="list-disc list-inside space-y-1 text-xs md:text-sm">
+        <h6 className="font-bold mb-1 text-gray-800">CARA MEMESAN</h6>
+        <ul className="list-disc list-inside space-y-1 text-xs md:text-sm text-gray-700">
           <li>
             Pilih kategori menu di bagian atas (Paket, Non-Paket, Tambahan).
           </li>
@@ -30,8 +30,8 @@ export default function OrderInstructions({ openingTimeText, closingTimeText }: 
       </div>
 
       <div className="mb-3">
-        <h6 className="font-bold mb-1">CATATAN PENTING</h6>
-        <ul className="list-disc list-inside space-y-1 text-xs md:text-sm">
+        <h6 className="font-bold mb-1 text-gray-800">CATATAN PENTING</h6>
+        <ul className="list-disc list-inside space-y-1 text-xs md:text-sm text-gray-700">
           <li>Ati ampela & kulit stok terbatas; jika habis otomatis diganti dengan bagian lain yang ada.</li>
           <li>
             Sambal bawang stok terbatas; jika habis otomatis diganti sambal
@@ -44,7 +44,7 @@ export default function OrderInstructions({ openingTimeText, closingTimeText }: 
             Nasi daun jeruk stok hanya sedikit; hanya bisa dipesan di
             outlet saat stok ada.
           </li>
-          <li>
+          <li className="font-bold text-red-700 bg-red-50 p-1 rounded">
             Pesanan masuk akan dibuat sesuai jam buka outlet dan sesuai urutan pesanan.
           </li>
         </ul>

@@ -22,6 +22,9 @@ const itemCodeToNameMap: { [key: string]: string } = {
 };
 
 export default function Home() {
+  // Saklar untuk development. Set `true` untuk paksa buka halaman order & bypass jam.
+  const forceOpenForDevelopment = false; 
+
   // --- State previously in page.tsx ---
   const [pageIsLoading, setPageIsLoading] = useState(true);
   
@@ -48,11 +51,15 @@ export default function Home() {
   const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
+    if (forceOpenForDevelopment) {
+      return; // Abaikan redirect jika mode development aktif
+    }
+
     if (openingTimeText === '00.00' && closingTimeText === '00.00') {
       setIsRedirecting(true);
       window.location.href = '/closed';
     }
-  }, [openingTimeText, closingTimeText]);
+  }, [openingTimeText, closingTimeText, forceOpenForDevelopment]);
 
   // --- LOGIC MOVED FROM OrderingPage ---
 
@@ -330,6 +337,9 @@ export default function Home() {
   }, []);
 
   const getDynamicStatus = useCallback((config: { jamBuka: string; jamTutup: string; maxOrders: number }, orderCount: number) => {
+    if (forceOpenForDevelopment) {
+      return { isOpen: true, reason: 'MODE DEV: Jam pemesanan diabaikan.' };
+    }
     if (!isWithinOpeningHours(config.jamBuka, config.jamTutup)) {
       const openLabel = config.jamBuka?.replace(':', '.') || '10.00';
       const closeLabel = config.jamTutup?.replace(':', '.') || '15.30';
@@ -339,7 +349,7 @@ export default function Home() {
       return { isOpen: false, reason: 'Batas maksimal pesanan hari ini sudah tercapai.' };
     }
     return { isOpen: true, reason: null };
-  }, [isWithinOpeningHours]);
+  }, [isWithinOpeningHours, forceOpenForDevelopment]);
 
   const fetchConfigAndOrders = useCallback(async () => {
     try {
@@ -403,6 +413,18 @@ export default function Home() {
     loadInitialData();
   }, [fetchConfigAndOrders, fetchStock]);
 
+  // Set up polling for stock updates
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      fetchStock();
+    }, 30000); // Poll every 30 seconds
+
+    // Cleanup interval on component unmount
+    return () => clearInterval(intervalId);
+  }, [fetchStock]);
+
+  const isNdjOutOfStock = stock.find(item => item.nama_item === 'Nasi Daun Jeruk')?.stok === 0;
+
   return (
     <>
       <LoadingScreen isLoading={pageIsLoading || isRedirecting} />
@@ -431,6 +453,7 @@ export default function Home() {
           whatsappUrl={whatsappUrl}
           whatsappMessage={whatsappMessage}
           priceMap={priceMap}
+          isNdjOutOfStock={isNdjOutOfStock}
         />
       </div>
     </>

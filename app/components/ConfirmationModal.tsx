@@ -88,13 +88,13 @@ export default function ConfirmationModal({
       className="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={handleBackdropClick}
     >
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all scale-100">
+      <div className="bg-white/50 backdrop-blur-lg border border-white/30 rounded-2xl shadow-2xl max-w-md w-full transform transition-all">
         {/* Modal Header */}
-        <div className="border-b border-gray-100 px-6 py-4 flex justify-between items-center">
-          <h5 className="text-xl font-bold">Konfirmasi Pembayaran</h5>
+        <div className="border-b border-white/20 px-6 py-4 flex justify-between items-center">
+          <h5 className="text-xl font-bold text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.5)]">Konfirmasi Pembayaran</h5>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+            className="text-gray-300 hover:text-white text-2xl font-bold"
           >
             ×
           </button>
@@ -104,11 +104,11 @@ export default function ConfirmationModal({
           {!isStoreOpen ? (
             <div className="space-y-4">
               <div className="text-red-600 text-6xl">⚠️</div>
-              <div className="text-red-600 font-bold text-lg">
+              <div className="text-red-500 font-bold text-lg">
                 Maaf Outlet tutup atau pesanan online sudah overload, silahkan coba lagi nanti atau datang ke outlet
               </div>
               {statusReason && (
-                <div className="text-gray-600 text-sm bg-gray-100 p-3 rounded-lg">
+                <div className="text-gray-200 text-sm bg-black/20 p-3 rounded-lg">
                   {statusReason}
                 </div>
               )}
@@ -124,29 +124,29 @@ export default function ConfirmationModal({
                 />
               ) : (
                 <div className="flex items-center justify-center">
-                  <div className="text-center">
-                    <p className="text-gray-600 text-sm">QRIS akan muncul dalam</p>
-                    <p className="text-3xl font-bold text-blue-600">{qrisCountdown}</p>
-                    <p className="text-gray-600 text-sm">detik</p>
+                  <div className="text-center text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.5)]">
+                    <p className="text-sm">QRIS akan muncul dalam</p>
+                    <p className="text-3xl font-bold text-[#66BB6A]">{qrisCountdown}</p>
+                    <p className="text-sm">detik</p>
                   </div>
                 </div>
               )}
 
-              <p className="text-red-600 font-bold text-sm">
+              <p className="text-red-300 font-bold text-sm">
                 Pastikan harga sudah benar, simpan bukti Pembayaran lalu kirimkan saat
                 whatsapp terbuka
               </p>
 
-              <p className="text-lg">
+              <p className="text-lg text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.5)]">
                 Total bayar: <span className="font-bold">Rp {total.toLocaleString('id-ID')}</span>
               </p>
             </>
           )}
         </div>        {/* Modal Footer */}
-        <div className="border-t border-gray-100 px-6 py-4 flex justify-end gap-3">
+        <div className="border-t border-white/20 px-6 py-4 flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition font-semibold"
+            className="px-5 py-2.5 bg-black/10 text-gray-200 rounded-xl hover:bg-black/20 transition font-semibold"
           >
             {!isStoreOpen ? 'Tutup' : 'Batal'}
           </button>
@@ -156,7 +156,7 @@ export default function ConfirmationModal({
               disabled={!buttonEnabled || isSubmitting}
               className={`px-5 py-2.5 rounded-xl font-bold transition shadow-md ${
                 buttonEnabled && !isSubmitting
-                  ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer active:scale-95'
+                  ? 'bg-[#2E7D32] text-white hover:opacity-90 cursor-pointer active:scale-95'
                   : 'bg-gray-400 text-white cursor-not-allowed'
               }`}
             >

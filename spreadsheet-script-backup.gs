@@ -52,6 +52,18 @@ function doPost(e) {
   }
 }
 
+function doOptions(e) {
+  return ContentService
+    .createTextOutput('')
+    .setMimeType(ContentService.MimeType.TEXT)
+    .setHeaders({
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400'
+    });
+}
+
 
 
 /* =========================
@@ -397,14 +409,13 @@ function updateStockBatch(stockUpdates) {
    HELPER FUNCTIONS
 ========================= */
 function jsonOutput(data) {
-  const output = ContentService.createTextOutput(JSON.stringify(data));
-  output.setMimeType(ContentService.MimeType.JSON);
-  output.setHeaders({
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-  });
-  return output;
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setHeaders({
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    })
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 /* =========================

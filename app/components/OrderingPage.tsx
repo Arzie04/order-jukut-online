@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react';
 import MenuModal from './MenuModal';
 import ConfirmationModal from './ConfirmationModal';
 import AlertModal from './AlertModal';
-import OrderInstructions from './OrderInstructions';
+import TutorialModal from './TutorialModal';
 import StockDisplay from './StockDisplay';
 import OrderForm from './OrderForm';
+import ComingSoonModal from './ComingSoonModal';
 
 // Keep the interfaces, they are needed for props
 export interface StockItem {
@@ -46,6 +47,7 @@ export interface OrderingPageProps {
   whatsappUrl: string;
   whatsappMessage: string;
   priceMap: { [key: string]: number };
+  isNdjOutOfStock?: boolean;
 
   // Handlers from parent
   setName: (name: string) => void;
@@ -61,13 +63,15 @@ export interface OrderingPageProps {
 export default function OrderingPage({
   name, note, total, calcDetails, showCalcResult, alert, isStoreOpen,
   statusReason, openingTimeText, closingTimeText, stock, orderItems,
-  isSubmitting, whatsappUrl, whatsappMessage, priceMap,
+  isSubmitting, whatsappUrl, whatsappMessage, priceMap, isNdjOutOfStock,
   setName, setNote, setAlert, calculateTotal, handleOpenConfirm,
   handleModalSubmit, handleAddOrUpdateItem
 }: OrderingPageProps) {
   const [showMenuModal, setShowMenuModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showAlertModal, setShowAlertModal] = useState(!!alert);
+  const [showTutorialModal, setShowTutorialModal] = useState(true);
+  const [showComingSoonModal, setShowComingSoonModal] = useState(false);
 
   // Effect to handle showing the alert modal when the alert prop changes
   useEffect(() => {
@@ -77,6 +81,10 @@ export default function OrderingPage({
       setShowAlertModal(false);
     }
   }, [alert]);
+  
+  const handleCloseTutorial = () => {
+    setShowTutorialModal(false);
+  };
 
   const closeAlert = () => {
     setShowAlertModal(false);
@@ -96,16 +104,25 @@ export default function OrderingPage({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 md:pt-4 pb-20 md:pb-8">
-      <div className="w-full h-32 md:h-40 bg-white shadow-sm overflow-hidden mb-4 md:mb-6 relative">
-        <img src="/Header.jpg" alt="Header" className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent md:hidden"></div>
-      </div>
-      <div className="container mx-auto px-0 md:px-4">
-        <div className="bg-white md:rounded-xl shadow-none md:shadow-lg p-4 md:p-6 min-h-screen md:min-h-0 rounded-t-2xl -mt-4 relative z-10">
-          <OrderInstructions openingTimeText={openingTimeText} closingTimeText={closingTimeText} />
+    <div className="min-h-screen pb-20">
+      {/* New Modern Sticky Navbar with Glassmorphism */}
+      <header className="sticky top-0 z-30 bg-white/70 backdrop-blur-md shadow-sm p-4">
+        <div className="container mx-auto flex justify-between items-center">
+          <h1 className="text-xl font-bold text-gray-800">AYAM JUKUT CABE IJO JAKARTA</h1>
+          <button 
+            onClick={() => setShowComingSoonModal(true)} 
+            className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg text-sm font-semibold hover:bg-gray-300 transition"
+          >
+            Login
+          </button>
+        </div>
+      </header>
+      
+      <div className="container mx-auto px-0 md:px-4 mt-4">
+        {/* Adjusted content container with glassmorphism */}
+        <div className="bg-white/50 backdrop-blur-lg md:rounded-2xl shadow-lg p-4 md:p-6">
           <div className="text-center mb-6">
-            <button type="button" onClick={() => setShowMenuModal(true)} className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm md:text-base font-semibold">
+            <button type="button" onClick={() => setShowMenuModal(true)} className="px-6 py-2 bg-[#2E7D32] text-white rounded-lg hover:bg-opacity-90 transition text-sm md:text-base font-semibold shadow-md hover:shadow-lg">
               📋 Lihat Menu
             </button>
           </div>
@@ -125,9 +142,16 @@ export default function OrderingPage({
             handleAddOrUpdateItem={handleAddOrUpdateItem}
             total={total}
             priceMap={priceMap}
+            isNdjOutOfStock={isNdjOutOfStock}
           />
         </div>
       </div>
+      <TutorialModal 
+        isOpen={showTutorialModal}
+        onClose={handleCloseTutorial}
+        openingTimeText={openingTimeText}
+        closingTimeText={closingTimeText}
+      />
       <MenuModal isOpen={showMenuModal} onClose={() => setShowMenuModal(false)} />
       <ConfirmationModal 
         isOpen={showConfirmModal} 
@@ -146,6 +170,7 @@ export default function OrderingPage({
         whatsappUrl={whatsappUrl} 
         whatsappMessage={whatsappMessage} 
       />
+      <ComingSoonModal isOpen={showComingSoonModal} onClose={() => setShowComingSoonModal(false)} />
     </div>
   );
 }

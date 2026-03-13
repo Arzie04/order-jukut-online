@@ -4,10 +4,24 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Image from 'next/image';
 
+// ===================================================================================
+//   SAKLAR UNTUK DEVELOPMENT
+//   Ubah 'off' menjadi 'on' untuk mengaktifkan halaman ini.
+//   Jika 'off', halaman ini akan otomatis redirect ke halaman utama ('/').
+const closedPageStatus = 'on';
+// ===================================================================================
+
+
 const ClosedPage = () => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isInteracted, setIsInteracted] = useState(false);
   const fadeIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (closedPageStatus === 'off') {
+      window.location.href = '/';
+    }
+  }, []);
 
   const handleInteraction = useCallback(() => {
     if (!isInteracted && audioRef.current) {
@@ -45,6 +59,9 @@ const ClosedPage = () => {
 
   // Listen for page visibility changes
   useEffect(() => {
+    // Jangan jalankan efek ini jika halaman dinonaktifkan
+    if (closedPageStatus === 'on') return;
+
     const handleVisibilityChange = () => {
       if (!audioRef.current) return;
       const audio = audioRef.current;
@@ -88,6 +105,14 @@ const ClosedPage = () => {
     };
   }, [isInteracted]);
 
+  // Jika status 'off', tampilkan pesan redirect atau null
+  if (closedPageStatus === 'off') {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
+        <p>Halaman 'Tutup' dinonaktifkan. Mengalihkan ke halaman utama...</p>
+      </div>
+    );
+  }
 
   return (
     <>

@@ -89,7 +89,7 @@ export default function AlertModal({
                   href={whatsappUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full mb-4 px-4 py-3.5 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white rounded-xl transition-all font-bold text-center shadow-lg hover:shadow-xl active:scale-[0.98] flex items-center justify-center gap-2 group"
+                  className="w-full mb-4 px-4 py-3.5 bg-[#2E7D32] text-white hover:opacity-90 rounded-xl transition-all font-bold text-center shadow-lg hover:shadow-xl active:scale-[0.98] flex items-center justify-center gap-2 group"
                 >
                   <span className="text-xl group-hover:scale-110 transition-transform">📱</span> 
                   <span>Buka WhatsApp</span>

@@ -1,145 +1,125 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface TutorialModalProps {
   isOpen: boolean;
   onClose: () => void;
+  openingTimeText: string;
+  closingTimeText: string;
 }
 
-interface TutorialStep {
-  id: number;
-  title: string;
-  file: string;
-  type: 'video' | 'image';
-}
+const TutorialStep = ({ title, children }: { title: string, children: React.ReactNode }) => (
+  <div>
+    <h3 className="text-xl font-bold text-center mb-4 text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.6)]">{title}</h3>
+    {children}
+  </div>
+);
 
-const tutorialSteps: TutorialStep[] = [
-  { id: 1, title: 'Lihat Menu', file: '/tutorial/1 Lihat menu.mp4', type: 'video' },
-  { id: 2, title: 'Isi Pesanan', file: '/tutorial/2 isi pesanan.mp4', type: 'video' },
-  { id: 3, title: 'Tunggu QR Code', file: '/tutorial/3 tunggu Qris.jpeg', type: 'image' },
-  { id: 4, title: 'Simpan Bukti', file: '/tutorial/4 simpan bukti.mp4', type: 'video' },
-  { id: 5, title: 'Masuk WhatsApp', file: '/tutorial/5 masuk wa.mp4', type: 'video' },
-  { id: 6, title: 'Kirim WhatsApp', file: '/tutorial/6 kirim wa.jpeg', type: 'image' },
-];
+export default function TutorialModal({ isOpen, onClose, openingTimeText, closingTimeText }: TutorialModalProps) {
+  const [step, setStep] = useState(0);
+  const modalRef = useRef<HTMLDivElement>(null);
 
-export default function TutorialModal({ isOpen, onClose }: TutorialModalProps) {
-  const [currentStep, setCurrentStep] = useState(0);
+  const steps = [
+    {
+      title: '⚠️ HARAP DIBACA ⚠️',
+      content: (
+        <div className="space-y-4 text-sm text-left text-gray-100 [text-shadow:0_1px_2px_rgba(0,0,0,0.4)]">
+          <p className="text-center font-bold text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.6)]">
+            Pemesanan online hanya dilayani pukul{' '}
+            <span className="text-red-500 font-bold">
+              {openingTimeText} - {closingTimeText}
+            </span>{' '}
+            WIB atau sampai batas maksimal pesanan hari ini tercapai.
+          </p>
+          <div>
+            <h6 className="font-bold mb-1 text-white">CARA MEMESAN</h6>
+            <ul className="list-disc list-inside space-y-2">
+              <li>Pilih kategori menu (<span className="font-semibold text-green-300">Paket</span>, <span className="font-semibold text-green-300">Non-Paket</span>, dll).</li>
+              <li>Klik gambar atau nama menu yang diinginkan untuk menambahkannya ke pesanan.</li>
+              <li>Isi Nama Pemesan dan Catatan (jika ada), lalu klik "Pesan Sekarang".</li>
+            </ul>
+          </div>
+        </div>
+      )
+    },
+    {
+      title: 'CATATAN PENTING',
+      content: (
+        <div className="space-y-3 text-sm text-left text-gray-100 [text-shadow:0_1px_2px_rgba(0,0,0,0.4)]">
+           <ul className="list-disc list-inside space-y-2">
+              <li><span className="font-semibold text-green-300">Ati ampela</span> & <span className="font-semibold text-green-300">kulit</span> stok terbatas; jika habis otomatis diganti dengan bagian lain yang ada.</li>
+              <li><span className="font-semibold text-green-300">Sambal bawang</span> stok terbatas; jika habis otomatis diganti <span className="font-semibold text-green-300">sambal ijo</span>.</li>
+              <li>Jika <span className="font-semibold text-green-300">bagian ayam</span> yang dipesan tidak tersedia, kami akan menggantinya dengan bagian lain yang ada.</li>
+              <li><span className="font-semibold text-green-300">Nasi daun jeruk</span> stok hanya sedikit; hanya bisa dipesan di outlet saat stok ada.</li>
+              <li className="font-bold text-red-100 bg-red-900/50 p-2 rounded-lg">
+                Pesanan masuk akan dibuat sesuai jam buka outlet dan sesuai urutan pesanan.
+              </li>
+            </ul>
+        </div>
+      )
+    }
+  ];
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (isOpen) {
+      setStep(0); // Reset to first step when opened
+    }
+  }, [isOpen]);
 
-  const handlePrevious = () => {
-    setCurrentStep(prev => Math.max(0, prev - 1));
-  };
-
+  if (!isOpen) {
+    return null;
+  }
+  
   const handleNext = () => {
-    setCurrentStep(prev => Math.min(tutorialSteps.length - 1, prev + 1));
+    if (step < steps.length - 1) {
+      setStep(step + 1);
+    } else {
+      onClose();
+    }
   };
 
-  const currentTutorial = tutorialSteps[currentStep];
+  const handlePrev = () => {
+    if (step > 0) {
+      setStep(step - 1);
+    }
+  };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-xl font-bold text-gray-800">Cara Memesan</h2>
+    <div
+      ref={modalRef}
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    >
+      <div className="bg-white/50 backdrop-blur-lg border border-white/30 rounded-2xl shadow-2xl max-w-md w-full transform transition-all p-6">
+        <div className="min-h-[250px]">
+          <TutorialStep title={steps[step].title}>
+            {steps[step].content}
+          </TutorialStep>
+        </div>
+        
+        {/* Progress Dots */}
+        <div className="flex justify-center gap-2 my-4">
+          {steps.map((_, index) => (
+            <div
+              key={index}
+              className={`w-2 h-2 rounded-full ${step === index ? 'bg-[#2E7D32]' : 'bg-gray-300'}`}
+            />
+          ))}
+        </div>
+
+        {/* Footer Buttons */}
+        <div className="flex justify-between items-center gap-4">
+          {step > 0 ? (
+            <button onClick={handlePrev} className="text-gray-200 font-semibold px-4 py-2">
+              Kembali
+            </button>
+          ) : <div />}
           <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+            onClick={handleNext}
+            className="flex-grow bg-[#2E7D32] text-white rounded-lg hover:bg-opacity-90 transition font-semibold shadow-md hover:shadow-lg px-6 py-3"
           >
-            ×
+            {step === steps.length - 1 ? 'Saya Mengerti' : 'Lanjut'}
           </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-6">
-          {/* Step indicator */}
-          <div className="flex items-center justify-center mb-4">
-            <div className="flex space-x-2">
-              {tutorialSteps.map((_, index) => (
-                <div
-                  key={index}
-                  className={`w-3 h-3 rounded-full ${
-                    index === currentStep ? 'bg-blue-500' : 'bg-gray-300'
-                  }`}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Step title */}
-          <h3 className="text-lg font-semibold text-center mb-4">
-            Langkah {currentStep + 1}: {currentTutorial.title}
-          </h3>
-
-          {/* Media content */}
-          <div className="flex justify-center mb-6">
-            {currentTutorial.type === 'video' ? (
-              <video
-                key={currentTutorial.file}
-                autoPlay
-                loop
-                muted
-                playsInline
-                className="max-w-full max-h-96 rounded-lg shadow-lg"
-                preload="metadata"
-                style={{ outline: 'none' }}
-              >
-                <source src={currentTutorial.file} type="video/mp4" />
-                Browser Anda tidak mendukung video.
-              </video>
-            ) : (
-              <img
-                src={currentTutorial.file}
-                alt={currentTutorial.title}
-                className="max-w-full max-h-96 rounded-lg shadow-lg object-contain"
-              />
-            )}
-          </div>
-
-          {/* Navigation buttons */}
-          <div className="flex justify-between items-center">
-            <button
-              onClick={handlePrevious}
-              disabled={currentStep === 0}
-              className={`px-4 py-2 rounded-lg font-medium ${
-                currentStep === 0
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-gray-500 text-white hover:bg-gray-600'
-              }`}
-            >
-              ← Sebelumnya
-            </button>
-
-            <span className="text-sm text-gray-600">
-              {currentStep + 1} dari {tutorialSteps.length}
-            </span>
-
-            <button
-              onClick={handleNext}
-              disabled={currentStep === tutorialSteps.length - 1}
-              className={`px-4 py-2 rounded-lg font-medium ${
-                currentStep === tutorialSteps.length - 1
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-blue-500 text-white hover:bg-blue-600'
-              }`}
-            >
-              Selanjutnya →
-            </button>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="p-4 border-t bg-gray-50">
-          <div className="text-center">
-            <button
-              onClick={onClose}
-              className="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium"
-            >
-              Mengerti, Tutup Tutorial
-            </button>
-          </div>
         </div>
       </div>
     </div>

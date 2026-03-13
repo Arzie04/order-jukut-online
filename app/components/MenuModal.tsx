@@ -35,13 +35,13 @@ export default function MenuModal({ isOpen, onClose }: MenuModalProps) {
   return (
     <div
       ref={modalRef}
-      className="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+      className="hidden fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={handleBackdropClick}
     >
-      <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-auto">
+      <div className="bg-white/50 backdrop-blur-lg border border-white/30 rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-auto">
         {/* Modal Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-          <h5 className="text-xl font-bold">Menu</h5>
+        <div className="sticky top-0 bg-transparent border-b border-white/20 px-6 py-4 flex justify-between items-center">
+          <h5 className="text-xl font-bold text-gray-800">Menu</h5>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
@@ -60,10 +60,10 @@ export default function MenuModal({ isOpen, onClose }: MenuModalProps) {
         </div>
 
         {/* Modal Footer */}
-        <div className="border-t border-gray-200 px-6 py-4 flex justify-end">
+        <div className="border-t border-white/20 px-6 py-4 flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
+            className="px-4 py-2 bg-[#2E7D32] text-white rounded-lg hover:opacity-90 transition shadow-md"
           >
             Tutup
           </button>
