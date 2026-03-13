@@ -3,13 +3,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Image from 'next/image';
-
-// ===================================================================================
-//   SAKLAR UNTUK DEVELOPMENT
-//   Ubah 'off' menjadi 'on' untuk mengaktifkan halaman ini.
-//   Jika 'off', halaman ini akan otomatis redirect ke halaman utama ('/').
-const closedPageStatus = 'on';
-// ===================================================================================
+import { CLOSED_PAGE_STATUS, DEVELOPER_MODE } from '../lib/settings';
 
 
 const ClosedPage = () => {
@@ -18,7 +12,10 @@ const ClosedPage = () => {
   const fadeIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    if (closedPageStatus === 'off') {
+    // Jika Developer Mode ON, jangan redirect (biar kita bisa lihat/edit halamannya)
+    if (DEVELOPER_MODE) return;
+
+    if (CLOSED_PAGE_STATUS === 'off') {
       window.location.href = '/';
     }
   }, []);
@@ -61,7 +58,8 @@ const ClosedPage = () => {
   // Listen for page visibility changes
   useEffect(() => {
     // Jangan jalankan efek ini jika halaman dinonaktifkan
-    if (closedPageStatus === 'off') return;
+    // Kecuali jika sedang mode dev, kita biarkan jalan animasinya
+    if (!DEVELOPER_MODE && CLOSED_PAGE_STATUS === 'off') return;
 
     const handleVisibilityChange = () => {
       if (!audioRef.current) return;
@@ -107,7 +105,8 @@ const ClosedPage = () => {
   }, [isInteracted]);
 
   // Jika status 'off', tampilkan pesan redirect atau null
-  if (closedPageStatus === 'off') {
+  // Tapi jika Developer Mode, tetap tampilkan halamannya
+  if (!DEVELOPER_MODE && CLOSED_PAGE_STATUS === 'off') {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
         <p>Halaman 'Tutup' dinonaktifkan. Mengalihkan ke halaman utama...</p>

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import OrderingPage from './components/OrderingPage';
 import LoadingScreen from './components/LoadingScreen';
 import { API_URLS } from './lib/api-config';
+import { DEVELOPER_MODE, CLOSED_PAGE_STATUS } from './lib/settings';
 import { StockItem, OrderItem, AlertMessage } from './components/OrderingPage'; // Import interfaces
 
 const priceMap: { [key: string]: number } = {
@@ -22,9 +23,6 @@ const itemCodeToNameMap: { [key: string]: string } = {
 };
 
 export default function Home() {
-  // Saklar untuk development. Set `true` untuk paksa buka halaman order & bypass jam.
-  const forceOpenForDevelopment = false; 
-
   // --- State previously in page.tsx ---
   const [pageIsLoading, setPageIsLoading] = useState(true);
   
@@ -51,15 +49,16 @@ export default function Home() {
   const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
-    if (forceOpenForDevelopment) {
+    if (DEVELOPER_MODE) {
       return; // Abaikan redirect jika mode development aktif
     }
 
-    if (openingTimeText === '00.00' && closingTimeText === '00.00') {
+    // Hanya redirect ke /closed jika waktunya 00.00 DAN halaman closed statusnya 'on'
+    if (CLOSED_PAGE_STATUS === 'on' && openingTimeText === '00.00' && closingTimeText === '00.00') {
       setIsRedirecting(true);
       window.location.href = '/closed';
     }
-  }, [openingTimeText, closingTimeText, forceOpenForDevelopment]);
+  }, [openingTimeText, closingTimeText, CLOSED_PAGE_STATUS]);
 
   // --- LOGIC MOVED FROM OrderingPage ---
 
@@ -337,7 +336,7 @@ export default function Home() {
   }, []);
 
   const getDynamicStatus = useCallback((config: { jamBuka: string; jamTutup: string; maxOrders: number }, orderCount: number) => {
-    if (forceOpenForDevelopment) {
+    if (DEVELOPER_MODE) {
       return { isOpen: true, reason: 'MODE DEV: Jam pemesanan diabaikan.' };
     }
     if (!isWithinOpeningHours(config.jamBuka, config.jamTutup)) {
@@ -349,7 +348,7 @@ export default function Home() {
       return { isOpen: false, reason: 'Batas maksimal pesanan hari ini sudah tercapai.' };
     }
     return { isOpen: true, reason: null };
-  }, [isWithinOpeningHours, forceOpenForDevelopment]);
+  }, [isWithinOpeningHours]);
 
   const fetchConfigAndOrders = useCallback(async () => {
     try {
@@ -403,7 +402,7 @@ export default function Home() {
 
   useEffect(() => {
     const loadInitialData = async () => {
-      setPageIsLoading(true);
+      // setPageIsLoading(true); // Tidak perlu karena default state sudah true
       await Promise.all([
           fetchConfigAndOrders(),
           fetchStock()
@@ -411,7 +410,7 @@ export default function Home() {
       setPageIsLoading(false);
     };
     loadInitialData();
-  }, [fetchConfigAndOrders, fetchStock]);
+  }, []); // Dependency kosong agar hanya jalan sekali saat mount
 
   // Set up polling for stock updates
   useEffect(() => {
