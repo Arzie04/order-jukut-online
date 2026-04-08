@@ -130,7 +130,7 @@ export default function OrderingPage({
             showCalcResult={showCalcResult}
             calcDetails={calcDetails}
             calculateTotal={calculateTotal}
-            handleOpenConfirm={openConfirm} // Use the wrapper
+            handleOpenConfirm={openConfirm}
             orderItems={orderItems}
             handleAddOrUpdateItem={handleAddOrUpdateItem}
             total={total}
@@ -149,7 +149,7 @@ export default function OrderingPage({
         isOpen={showConfirmModal} 
         onClose={() => setShowConfirmModal(false)} 
         total={total} 
-        onSubmit={confirmAndSubmit} // Use the wrapper
+        onSubmit={confirmAndSubmit}
         isStoreOpen={isStoreOpen} 
         statusReason={statusReason}
         isSubmitting={isSubmitting}
@@ -158,7 +158,7 @@ export default function OrderingPage({
         isOpen={showAlertModal} 
         type={alert?.type || 'info'} 
         message={alert?.message || ''} 
-        onClose={closeAlert} // Use the wrapper
+        onClose={closeAlert}
         whatsappUrl={whatsappUrl} 
         whatsappMessage={whatsappMessage} 
       />

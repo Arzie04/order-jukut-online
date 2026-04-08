@@ -1,5 +1,27 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Recent Updates (April 8, 2026)
+
+### New Features
+- **Dynamic QRIS Code Generation**: Automatic QR code generation with CRC-16/CCITT validation for each order, injecting the exact nominal amount into the QRIS code
+- **Price Updates**: All items increased by Rp1,000 (except Tahu and Tempe which remain at Rp1,000)
+- **WhatsApp Integration**: Direct WhatsApp messaging with pulse border animations and copy-to-clipboard functionality
+- **Announcement Modal**: New 3-page onboarding modal displaying store hours, important notes, and announcements
+
+### UI/UX Improvements
+- **Desktop Responsiveness**: Optimized AlertModal and ConfirmationModal for desktop screens with proper scaling and sizing
+- **Mobile First Design**: Maintained responsive mobile experience while enhancing desktop layout
+- **Animations**: Added smooth pulse-border, blink-glow, and shockwave animations for better user engagement
+- **Clear Payment Instructions**: Step-by-step guidance for QRIS payment and WhatsApp confirmation
+
+### Technical Updates
+- Added `qris-generator.ts` for dynamic QRIS generation with EMV QRCPS format
+- Improved modals with `max-h-[90vh]` viewport constraints
+- Enhanced accessibility and visual hierarchy across all modal components
+
+### Removed Features
+- Removed "Lihat Menu" button (no longer needed)
+
 ## Getting Started
 
 First, run the development server:

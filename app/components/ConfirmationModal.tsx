@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
+import { generateQrisInfo, formatAmount } from '@/app/lib/qris-generator';
 
 interface ConfirmationModalProps {
   isOpen: boolean;
@@ -26,6 +28,7 @@ export default function ConfirmationModal({
   const [qrisCountdown, setQrisCountdown] = useState(5);
   const [buttonCountdown, setButtonCountdown] = useState(10);
   const [buttonEnabled, setButtonEnabled] = useState(false);
+  const [qrisInfo, setQrisInfo] = useState<any>(null);
 
   useEffect(() => {
     if (!modalRef.current) return;
@@ -38,6 +41,9 @@ export default function ConfirmationModal({
       setQrisCountdown(5);
       setButtonCountdown(10);
       setButtonEnabled(false);
+      // Generate QRIS dinamis berdasarkan nominal
+      const info = generateQrisInfo(total);
+      setQrisInfo(info);
     } else {
       modalRef.current.classList.add('hidden');
       document.body.style.overflow = 'auto';
@@ -46,7 +52,7 @@ export default function ConfirmationModal({
     return () => {
       document.body.style.overflow = 'auto';
     };
-  }, [isOpen]);
+  }, [isOpen, total]);
 
   // Countdown QRIS - tampil setelah 5 detik
   useEffect(() => {
@@ -85,68 +91,113 @@ export default function ConfirmationModal({
   return (
     <div
       ref={modalRef}
-      className="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      className="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 md:p-4 lg:p-6"
       onClick={handleBackdropClick}
     >
-      <div className="bg-white/50 backdrop-blur-lg border border-white/30 rounded-2xl shadow-2xl max-w-md w-full transform transition-all">
-        {/* Modal Header */}
-        <div className="border-b border-white/20 px-6 py-4 flex justify-between items-center">
-          <h5 className="text-xl font-bold text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.5)]">Konfirmasi Pembayaran</h5>
-          <button
-            onClick={onClose}
-            className="text-gray-300 hover:text-white text-2xl font-bold"
-          >
-            ×
-          </button>
-        </div>        {/* Modal Body */}
-        <div className="p-6 text-center space-y-4 max-h-96 overflow-y-auto">
+      <div className="bg-gradient-to-b from-white/70 to-white/50 backdrop-blur-xl border border-white/40 rounded-3xl shadow-2xl w-full max-w-md md:max-w-lg lg:max-w-lg transform transition-all overflow-hidden max-h-[90vh] flex flex-col">
+        {/* Header dengan gradient */}
+        <div className="bg-gradient-to-r from-emerald-500 to-green-600 px-5 md:px-8 lg:px-10 py-5 md:py-6 lg:py-6 text-center shadow-lg flex-shrink-0">
+          <h5 className="text-2xl md:text-3xl lg:text-3xl font-bold text-white drop-shadow-lg">💳 Konfirmasi Pembayaran</h5>
+        </div>
+
+        {/* Modal Body */}
+        <div className="p-4 md:p-6 lg:p-6 text-center space-y-4 md:space-y-5 lg:space-y-4 overflow-y-auto flex-1">
           {/* Cek apakah outlet buka atau tutup */}
           {!isStoreOpen ? (
-            <div className="space-y-4">
-              <div className="text-red-600 text-6xl">⚠️</div>
-              <div className="text-red-500 font-bold text-lg">
+            <div className="space-y-4 md:space-y-6 lg:space-y-5">
+              <div className="text-6xl md:text-7xl lg:text-7xl animate-bounce">⚠️</div>
+              <div className="text-red-600 font-bold text-base md:text-lg lg:text-lg">
                 Maaf Outlet tutup atau pesanan online sudah overload, silahkan coba lagi nanti atau datang ke outlet
               </div>
               {statusReason && (
-                <div className="text-gray-200 text-sm bg-black/20 p-3 rounded-lg">
+                <div className="text-gray-700 text-xs md:text-sm lg:text-sm bg-yellow-100/50 border border-yellow-400/50 p-4 md:p-5 lg:p-5 rounded-xl">
                   {statusReason}
                 </div>
               )}
             </div>
           ) : (
             <>
-              {/* QRIS dengan countdown */}
+              {/* QRIS Display Section */}
               {showQris ? (
-                <img
-                  src="/Qris.jpeg"
-                  alt="QRIS"
-                  className="w-full rounded-lg"
-                />
-              ) : (
-                <div className="flex items-center justify-center">
-                  <div className="text-center text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.5)]">
-                    <p className="text-sm">QRIS akan muncul dalam</p>
-                    <p className="text-3xl font-bold text-[#66BB6A]">{qrisCountdown}</p>
-                    <p className="text-sm">detik</p>
+                <div className="space-y-3 md:space-y-4 lg:space-y-4">
+                  {/* Nominal at Top - Highlighted */}
+                  {qrisInfo && (
+                    <div className="bg-gradient-to-r from-emerald-400 to-green-500 rounded-2xl md:rounded-3xl p-4 md:p-5 lg:p-5 shadow-lg transform">
+                      <p className="text-xs md:text-sm lg:text-sm text-white font-bold uppercase tracking-wider opacity-90">💰 Total Bayar</p>
+                      <p className="text-2xl md:text-3xl lg:text-4xl font-black text-white drop-shadow-lg mt-1 md:mt-2">Rp {qrisInfo.amountFormatted}</p>
+                    </div>
+                  )}
+
+                  {/* QR Code Container - Compact */}
+                  <div className="flex justify-center">
+                    <div className="bg-white/97 backdrop-blur p-3 md:p-4 lg:p-4 rounded-2xl md:rounded-3xl shadow-xl border-4 border-green-300/60">
+                      {qrisInfo?.qrisCode ? (
+                        <QRCodeSVG
+                          value={qrisInfo.qrisCode}
+                          size={240}
+                          level="H"
+                          includeMargin={true}
+                        />
+                      ) : (
+                        <img
+                          src="/Qris.jpeg"
+                          alt="QRIS Payment Fallback"
+                          className="w-60 h-60 object-contain"
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Reference & Timestamp - Compact */}
+                  {qrisInfo && (
+                    <div className="space-y-2 md:space-y-3 lg:space-y-3">
+                      <div className="bg-blue-50/80 border border-blue-200 rounded-lg md:rounded-xl p-3 md:p-4 lg:p-4">
+                        <p className="text-[10px] md:text-xs lg:text-xs text-blue-700 font-bold uppercase mb-1 md:mb-1">📋 No. Ref</p>
+                        <p className="text-xs md:text-sm lg:text-sm font-mono font-bold text-blue-600 select-all cursor-pointer break-all">
+                          {qrisInfo.reference}
+                        </p>
+                      </div>
+                      <div className="text-[10px] md:text-xs lg:text-xs text-gray-600 font-semibold">
+                        ⏰ {qrisInfo.timestamp}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Important Box - Prominent */}
+                  <div className="bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-300 rounded-xl md:rounded-2xl p-4 md:p-5 lg:p-5 shadow-md">
+                    <p className="text-sm md:text-lg lg:text-lg font-bold text-red-700 mb-2 md:mb-2">⚡ PENTING!</p>
+                    <ul className="text-xs md:text-sm lg:text-sm text-red-800 space-y-1.5 md:space-y-2 lg:space-y-1.5 text-left list-disc list-inside font-semibold leading-tight">
+                      <li>Cek nominal sesuai pesanan</li>
+                      <li>Scan & bayar di e-wallet</li>
+                      <li>Simpan bukti pembayaran</li>
+                    </ul>
+                  </div>
+
+                  {/* Payment Instructions */}
+                  <div className="bg-blue-50/80 border border-blue-300 rounded-xl md:rounded-2xl p-4 md:p-5 lg:p-5">
+                    <p className="text-xs md:text-sm lg:text-sm font-bold text-blue-900 mb-2 md:mb-2">📱 Cara Bayar:</p>
+                    <p className="text-xs md:text-sm lg:text-sm text-blue-800 leading-snug">
+                      Buka e-wallet → Scan QRIS → Verifikasi nominal → Bayar → Kirim bukti ke WhatsApp Admin
+                    </p>
                   </div>
                 </div>
+              ) : (
+                /* Countdown Display */
+                <div className="flex flex-col items-center justify-center py-8 md:py-10 lg:py-10 space-y-4 md:space-y-5 lg:space-y-3">
+                  <p className="text-sm md:text-lg lg:text-lg font-semibold text-gray-700">QRIS akan muncul dalam</p>
+                  <div className="text-6xl md:text-7xl lg:text-8xl font-black text-green-600 animate-pulse">{qrisCountdown}</div>
+                  <p className="text-xs md:text-sm lg:text-sm text-gray-600">Harap tunggu sebentar...</p>
+                </div>
               )}
-
-              <p className="text-red-300 font-bold text-sm">
-                Pastikan harga sudah benar, simpan bukti Pembayaran lalu kirimkan saat
-                whatsapp terbuka
-              </p>
-
-              <p className="text-lg text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.5)]">
-                Total bayar: <span className="font-bold">Rp {total.toLocaleString('id-ID')}</span>
-              </p>
             </>
           )}
-        </div>        {/* Modal Footer */}
-        <div className="border-t border-white/20 px-6 py-4 flex justify-end gap-3">
+        </div>
+
+        {/* Modal Footer */}
+        <div className="border-t border-white/30 px-5 md:px-8 lg:px-10 py-4 md:py-5 lg:py-5 flex justify-end gap-3 md:gap-4 lg:gap-4 bg-gradient-to-r from-white/50 to-white/30 flex-shrink-0">
           <button
             onClick={onClose}
-            className="px-5 py-2.5 bg-black/10 text-gray-200 rounded-xl hover:bg-black/20 transition font-semibold"
+            className="px-5 md:px-7 lg:px-8 py-2.5 md:py-3 lg:py-3 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-xl md:rounded-xl transition font-semibold text-xs md:text-sm lg:text-sm shadow-md hover:shadow-lg active:scale-95"
           >
             {!isStoreOpen ? 'Tutup' : 'Batal'}
           </button>
@@ -154,16 +205,16 @@ export default function ConfirmationModal({
             <button
               onClick={onSubmit}
               disabled={!buttonEnabled || isSubmitting}
-              className={`px-5 py-2.5 rounded-xl font-bold transition shadow-md ${
+              className={`px-6 md:px-9 lg:px-10 py-2.5 md:py-3 lg:py-3 rounded-xl md:rounded-xl font-bold transition shadow-lg text-xs md:text-sm lg:text-sm active:scale-95 ${
                 buttonEnabled && !isSubmitting
-                  ? 'bg-[#2E7D32] text-white hover:opacity-90 cursor-pointer active:scale-95'
-                  : 'bg-gray-400 text-white cursor-not-allowed'
+                  ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:shadow-xl hover:from-emerald-600 hover:to-green-700 cursor-pointer'
+                  : 'bg-gray-400 text-white cursor-not-allowed opacity-60'
               }`}
             >
               {isSubmitting
-                ? 'Sedang mengecek pesanan...'
+                ? 'Sedang mengecek...'
                 : buttonEnabled
-                ? 'Sudah Bayar'
+                ? '✓ Sudah Bayar'
                 : `Tunggu ${buttonCountdown}s`}
             </button>
           )}
