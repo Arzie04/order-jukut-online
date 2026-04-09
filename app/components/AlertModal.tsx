@@ -215,6 +215,16 @@ export default function AlertModal({
                 </p>
               </div>
 
+              {/* Instruksi Jelas */}
+              <div className="bg-gradient-to-r from-blue-100 to-cyan-100 border-2 border-blue-400 rounded-xl md:rounded-2xl p-4 md:p-6 lg:p-6 shadow-md">
+                <p className="text-xs md:text-sm lg:text-sm font-bold text-blue-900 mb-3 md:mb-4 lg:mb-3">📝 LANGKAH SELANJUTNYA:</p>
+                <ol className="text-xs md:text-sm lg:text-sm text-blue-800 space-y-2 md:space-y-2.5 list-decimal list-inside font-semibold leading-snug">
+                  <li>Simpan <strong>bukti pembayaran QRIS</strong> (screenshot bukti pembayaran yang jelas)</li>
+                  <li>Klik tombol <strong>\"TERUSKAN PESANAN\"</strong> di bawah</li>
+                  <li>Kirim bukti pembayaran ke admin bersama pesan template yang ada jika link bukti pembayaran tidak tersedia</li>
+                </ol>
+              </div>
+
               {/* File Upload */}
               <div className="space-y-3">
                 <input
@@ -257,16 +267,6 @@ export default function AlertModal({
 
           {type === 'success' && whatsappUrl && whatsappMessage && (
             <div className="mb-6 md:mb-8 space-y-4 md:space-y-5 lg:space-y-4">
-              {/* Instruksi Jelas */}
-              <div className="bg-gradient-to-r from-blue-100 to-cyan-100 border-2 border-blue-400 rounded-xl md:rounded-2xl p-4 md:p-6 lg:p-6 shadow-md">
-                <p className="text-xs md:text-sm lg:text-sm font-bold text-blue-900 mb-3 md:mb-4 lg:mb-3">📝 LANGKAH SELANJUTNYA:</p>
-                <ol className="text-xs md:text-sm lg:text-sm text-blue-800 space-y-2 md:space-y-2.5 list-decimal list-inside font-semibold leading-snug">
-                  <li>Simpan <strong>bukti pembayaran QRIS</strong> (screenshot bukti pembayaran yang jelas)</li>
-                  <li>Klik tombol <strong>"TERUSKAN PESANAN"</strong> di bawah</li>
-                  <li>Kirim bukti pembayaran ke admin bersama pesan template yang ada jika link bukti pembayaran tidak tersedia</li>
-                </ol>
-              </div>
-
           {/* WhatsApp Button dengan Pulse Border */}
           <div className="pulse-border rounded-xl md:rounded-2xl transition-all">
             <button
