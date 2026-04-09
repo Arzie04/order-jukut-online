@@ -23,6 +23,7 @@ const ClosedPage = () => {
 
       const audio = audioRef.current;
       audio.muted = false;
+      audio.volume = 0; // Start from 0 for fade in effect
       audio.currentTime = 0;
       audio.play().catch(error => console.error("Audio play failed:", error));
 
@@ -36,6 +37,31 @@ const ClosedPage = () => {
         }
       }, 100);
     }
+  }, [isInteracted]);
+
+  // Fade out audio when page becomes invisible (moved to background)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && audioRef.current && isInteracted) {
+        const audio = audioRef.current;
+        if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+        
+        fadeIntervalRef.current = setInterval(() => {
+          if (audio.volume > 0.05) {
+            audio.volume = Math.max(0, audio.volume - 0.05);
+          } else {
+            audio.volume = 0;
+            audio.pause();
+            if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+          }
+        }, 100);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [isInteracted]);
 
   useEffect(() => {
@@ -63,12 +89,27 @@ const ClosedPage = () => {
     <>
       <audio
         ref={audioRef}
-        src="/sound/soft-ambient.mp3"
+        src="/sound/Maintenance/Maintenance%20Sound.mp3"
         loop
         hidden
         muted
         playsInline
       />
+
+      {/* Background Container */}
+      <div className="fixed inset-0 -z-20">
+        <Image
+          src="/Ornamen/Maintenance/Maintenance Web.webp"
+          alt="Maintenance Background"
+          fill
+          className="object-cover"
+          quality={80}
+          priority
+        />
+      </div>
+
+      {/* Dark Overlay for Text Readability */}
+      <div className="fixed inset-0 -z-10 bg-black bg-opacity-40" />
 
       {/* Interaction Overlay */}
       {!isInteracted && (
@@ -83,7 +124,7 @@ const ClosedPage = () => {
 
       {/* Main Content */}
       <div
-        className={`flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-700 text-white transition-opacity duration-1000 ${isInteracted ? 'opacity-100' : 'opacity-0'}`}
+        className={`flex flex-col items-center justify-center min-h-screen text-white transition-opacity duration-1000 ${isInteracted ? 'opacity-100' : 'opacity-0'}`}
       >
         <div className="p-6 sm:p-10 bg-black bg-opacity-20 backdrop-blur-lg rounded-2xl shadow-2xl text-center flex flex-col items-center max-w-md mx-4 border border-gray-600">
           <Image

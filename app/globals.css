@@ -17,8 +17,11 @@ body {
 }
 
 .animated-gradient {
-  background: linear-gradient(-45deg, #2E7D32, #66BB6A, #D4E157, #66BB6A);
-  background-size: 400% 400%;
-  animation: moveGradient 15s ease infinite;
+  background-image: url('/Ornamen/Maintenance/Maintenance Web (compress).png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  min-height: 100vh;
 }
 
