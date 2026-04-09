@@ -176,43 +176,19 @@ export default function Home() {
 
   const getNextOrderId = async (): Promise<string> => {
     try {
-      const res = await fetch(API_URLS.ORDERS);
+      const res = await fetch(API_URLS.GET_NEXT_ORDER_ID);
       const data = await res.json();
 
-      if (Array.isArray(data)) {
-        const today = new Date();
-        const y = today.getFullYear();
-        const m = today.getMonth();
-        const d = today.getDate();
-
-        const todaysOrders = data.filter((row: any) => {
-          if (!row || typeof row !== 'object' || !row.waktu || !row.no_order) return false;
-          const t = new Date(row.waktu);
-          return !Number.isNaN(t.getTime()) && t.getFullYear() === y && t.getMonth() === m && t.getDate() === d;
-        });
-
-        if (todaysOrders.length === 0) {
-          return 'ORD-0001';
-        }
-
-        // Cari angka terbesar dari order hari ini (Lebih Aman)
-        const maxNum = todaysOrders.reduce((max: number, row: any) => {
-          if (row.no_order && typeof row.no_order === 'string' && row.no_order.startsWith('ORD-')) {
-            const num = parseInt(row.no_order.replace('ORD-', ''), 10);
-            return !isNaN(num) && num > max ? num : max;
-          }
-          return max;
-        }, 0);
-
-        const nextNum = maxNum + 1;
-        return `ORD-${nextNum.toString().padStart(4, '0')}`;
+      if (data.no_order) {
+        console.log(`✅ Order ID generated: ${data.no_order}`);
+        return data.no_order;
       }
 
-      const fallbackNum = (data.length || 0) + 1;
-      return `ORD-${fallbackNum.toString().padStart(4, '0')}`;
+      console.warn('Unexpected response from getNextOrderId:', data);
+      return `ORD-ERR-${Date.now().toString().slice(-5)}`;
 
     } catch (e) {
-      console.error('unable to fetch/parse order ID', e);
+      console.error('unable to fetch order ID', e);
       return `ORD-ERR-${Date.now().toString().slice(-5)}`;
     }
   };
@@ -625,6 +601,7 @@ export default function Home() {
           isSubmitting={isSubmitting}
           whatsappUrl={whatsappUrl}
           whatsappMessage={whatsappMessage}
+          baseMessage={baseMessage}
           priceMap={priceMap}
           isNdjOutOfStock={isNdjOutOfStock}
           noOrder={currentOrderNumber}

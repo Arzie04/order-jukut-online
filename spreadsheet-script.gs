@@ -1,16 +1,25 @@
 /* =========================
    MAIN ENTRY POINT (doGet)
+   See: SCRIPT_ENDPOINTS_REFERENCE.md
 ========================= */
 function doGet(e) {
   const api = e.parameter.api || "orders";
 
-  if (api === "orders") return getOrders();
-  if (api === "orderItemCount") return getOrderItemCount();
-  if (api === "stock") return getStock();
-  if (api === "config") return getConfig();
-  
+  if (api === "orders") return getOrders(); // SC-A1
+  if (api === "orderItemCount") return getOrderItemCount(); // SC-A2
+  if (api === "stock") return getStock(); // SC-A3
+  if (api === "config") return getConfig(); // SC-A4
+  if (api === "getNextOrderId") return getNextOrderIdApi(); // SC-A5
+  if (api === "deleteOlderThan") {
+    const days = parseInt(e.parameter.days) || 7;
+    return deleteOlderThanDays(days); // SC-A6
+  }
+  if (api === "deleteByStatus") {
+    const status = e.parameter.status || "dibatalkan";
+    return deleteByStatus(status); // SC-A7
+  }
   if (api === "updateStatus") {
-    return updateOrderStatus(e.parameter.no_order, e.parameter.status);
+    return updateOrderStatus(e.parameter.no_order, e.parameter.status); // SC-A8
   }
 
   return jsonOutput({ error: "API tidak ditemukan" });
@@ -27,7 +36,10 @@ function getOrders() {
   const rows = sheet.getDataRange().getValues();
   rows.shift(); 
 
-  const data = rows.map(row => ({
+  // ✅ OPTIMIZATION: Return only latest 100 orders (faster & less data)
+  const latestRows = rows.slice(-100);
+
+  const data = latestRows.map(row => ({
     waktu: row[0],
     nama: row[1],
     pesanan: row[2],
@@ -39,6 +51,230 @@ function getOrders() {
   }));
 
   return jsonOutput(data);
+}
+
+/* =========================
+   GET NEXT ORDER ID (For Order Numbering - NO LIMITS)
+   Ini dipanggil khusus untuk generate nomor order, jadi fetch ALL rows
+========================= */
+function getNextOrderIdApi() {
+  try {
+    console.log('📘 getNextOrderIdApi called');
+    
+    const sheet = SpreadsheetApp
+      .getActiveSpreadsheet()
+      .getSheetByName("Form Responses 1");
+    
+    if (!sheet) {
+      console.error('❌ Sheet Form Responses 1 not found');
+      throw new Error("Sheet 'Form Responses 1' tidak ditemukan");
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    console.log(`📊 Total rows in sheet: ${data.length}`);
+    
+    if (data.length < 2) {
+      console.log('ℹ️  Sheet is empty or only has header, returning ORD-0001');
+      return jsonOutput({ no_order: "ORD-0001" });
+    }
+    
+    const rows = data.slice(1); // Skip header
+    console.log(`📊 Processing ${rows.length} rows`);
+
+    // NO LIMITS: Get ALL orders to find today's count
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = today.getMonth();
+    const d = today.getDate();
+    
+    console.log(`🗓️  Looking for orders from: ${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+
+    const todaysOrders = rows.filter((row, idx) => {
+      if (!row || row.length === 0) {
+        console.log(`⚠️  Row ${idx}: empty or null`);
+        return false;
+      }
+      
+      const waktu = row[0];
+      const noOrder = row[5];
+      
+      if (!waktu || !noOrder) {
+        return false;
+      }
+      
+      try {
+        const t = new Date(waktu);
+        if (isNaN(t.getTime())) {
+          console.log(`⚠️  Row ${idx}: invalid date`);
+          return false;
+        }
+        
+        const isTodaysOrder = t.getFullYear() === y && t.getMonth() === m && t.getDate() === d;
+        if (isTodaysOrder) {
+          console.log(`✅ Row ${idx}: TODAY order found - ${noOrder}`);
+        }
+        return isTodaysOrder;
+      } catch (e) {
+        console.log(`⚠️  Row ${idx}: error parsing date - ${e.toString()}`);
+        return false;
+      }
+    });
+
+    console.log(`🎯 Total today's orders found: ${todaysOrders.length}`);
+
+    if (todaysOrders.length === 0) {
+      console.log('ℹ️  No orders today, returning ORD-0001');
+      return jsonOutput({ no_order: "ORD-0001" });
+    }
+
+    // Find max number from today
+    let maxNum = 0;
+    todaysOrders.forEach((row, idx) => {
+      const noOrder = row[5];
+      if (noOrder && typeof noOrder === 'string' && noOrder.startsWith('ORD-')) {
+        const num = parseInt(noOrder.replace('ORD-', ''), 10);
+        if (!isNaN(num)) {
+          console.log(`ℹ️  Order ${idx}: ${noOrder} → number ${num}`);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+    });
+
+    const nextNum = maxNum + 1;
+    const result = `ORD-${nextNum.toString().padStart(4, '0')}`;
+    console.log(`✅ Next order ID: ${result}`);
+    return jsonOutput({ no_order: result });
+
+  } catch (error) {
+    console.error('❌ Error in getNextOrderIdApi:', error.toString());
+    console.error('Stack:', error);
+    
+    return jsonOutput({ 
+      no_order: `ORD-ERR-${Date.now().toString().slice(-5)}`,
+      error: error.toString(),
+      timestamp: new Date().toISOString()
+    });
+  }
+}
+
+/* =========================
+   DELETE OLDER THAN X DAYS (SC-A6)
+   See: SCRIPT_ENDPOINTS_REFERENCE.md
+========================= */
+function deleteOlderThanDays(days) {
+  try {
+    console.log(`🧹 Starting deleteOlderThanDays(${days} days)`);
+    
+    const sheet = SpreadsheetApp
+      .getActiveSpreadsheet()
+      .getSheetByName("Form Responses 1");
+    
+    if (!sheet) {
+      return jsonOutput({ 
+        success: false, 
+        message: "Sheet 'Form Responses 1' tidak ditemukan" 
+      });
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    const threshold = new Date(Date.now() - (days * 24 * 60 * 60 * 1000));
+    const rowsToDelete = [];
+    
+    console.log(`📊 Total rows: ${data.length - 1} (excluding header)`);
+    console.log(`🗓️  Threshold date: ${threshold.toISOString()}`);
+    
+    for (let i = data.length - 1; i > 0; i--) {
+      const waktu = data[i][0]; // Column A: timestamp
+      if (waktu && waktu instanceof Date) {
+        if (waktu < threshold) {
+          rowsToDelete.push(i);
+        }
+      }
+    }
+    
+    console.log(`📋 Found ${rowsToDelete.length} rows to delete`);
+    
+    let deletedCount = 0;
+    for (const rowIndex of rowsToDelete) {
+      sheet.deleteRow(rowIndex + 1);
+      deletedCount++;
+    }
+    
+    console.log(`✅ Deleted ${deletedCount} rows older than ${days} days`);
+    
+    return jsonOutput({
+      success: true,
+      message: `${deletedCount} baris yang lebih dari ${days} hari telah dihapus`,
+      deletedRows: deletedCount,
+      threshold: threshold.toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error in deleteOlderThanDays:', error);
+    return jsonOutput({
+      success: false,
+      error: error.toString()
+    });
+  }
+}
+
+/* =========================
+   DELETE BY STATUS (SC-A7)
+   See: SCRIPT_ENDPOINTS_REFERENCE.md
+========================= */
+function deleteByStatus(status) {
+  try {
+    console.log(`🧹 Starting deleteByStatus("${status}")`);
+    
+    const sheet = SpreadsheetApp
+      .getActiveSpreadsheet()
+      .getSheetByName("Form Responses 1");
+    
+    if (!sheet) {
+      return jsonOutput({ 
+        success: false, 
+        message: "Sheet 'Form Responses 1' tidak ditemukan" 
+      });
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    const statusUpper = String(status).trim().toUpperCase();
+    const rowsToDelete = [];
+    
+    console.log(`📊 Total rows: ${data.length - 1} (excluding header)`);
+    console.log(`🏷️  Looking for status: "${statusUpper}"`);
+    
+    for (let i = data.length - 1; i > 0; i--) {
+      const rowStatus = data[i][8]; // Column I (index 8): Status Pesanan
+      if (rowStatus && String(rowStatus).trim().toUpperCase() === statusUpper) {
+        rowsToDelete.push(i);
+      }
+    }
+    
+    console.log(`📋 Found ${rowsToDelete.length} rows with status "${statusUpper}"`);
+    
+    let deletedCount = 0;
+    for (const rowIndex of rowsToDelete) {
+      sheet.deleteRow(rowIndex + 1);
+      deletedCount++;
+    }
+    
+    console.log(`✅ Deleted ${deletedCount} rows with status "${statusUpper}"`);
+    
+    return jsonOutput({
+      success: true,
+      message: `${deletedCount} baris dengan status "${status}" telah dihapus`,
+      deletedRows: deletedCount,
+      status: status
+    });
+    
+  } catch (error) {
+    console.error('❌ Error in deleteByStatus:', error);
+    return jsonOutput({
+      success: false,
+      error: error.toString()
+    });
+  }
 }
 
 /* =========================

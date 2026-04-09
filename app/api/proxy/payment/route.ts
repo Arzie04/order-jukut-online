@@ -7,14 +7,21 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     console.log('Payment proxy received:', body);
 
+    // Add abort controller with timeout to prevent hanging
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout for backend
+
     const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: controller.signal
     });
 
+    clearTimeout(timeoutId);
+    
     console.log('Payment proxy response status:', response.status);
     
     const responseText = await response.text();
@@ -42,12 +49,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(data);
   } catch (error) {
     console.error('Payment proxy error:', error);
+    
+    // Better error messaging
+    let statusCode = 500;
+    let errorMessage = `Failed to process payment confirmation`;
+    
+    if (error instanceof Error) {
+      if (error.name === 'AbortError') {
+        errorMessage = 'Payment confirmation request timeout. Google Apps Script took too long to respond.';
+        statusCode = 504; // Gateway Timeout
+      } else {
+        errorMessage = `Failed to process payment confirmation: ${error.message}`;
+      }
+    }
+    
     return NextResponse.json(
       { 
-        error: `Failed to process payment confirmation: ${error instanceof Error ? error.message : String(error)}`,
+        error: errorMessage,
         success: false 
       },
-      { status: 500 }
+      { status: statusCode }
     );
   }
 }

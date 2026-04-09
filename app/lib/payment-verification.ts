@@ -80,8 +80,49 @@ function normalize(text: string): string {
 /**
  * Parse amount from string by removing non-digits
  */
+/**
+ * Parse amount string handling multiple formats
+ * - "16.000,00" (Indonesian with decimals: . = thousands, , = decimal) → 16000
+ * - "12.000" (Wonder: . = thousands, no decimals) → 12000
+ * - "16,000.00" (US: , = thousands, . = decimal) → 16000
+ * - "16000" (plain) → 16000
+ */
 function parseAmount(raw: string): number {
-  return parseInt(raw.replace(/[^\d]/g, ''), 10);
+  if (!raw) return 0;
+  
+  // Detect format by comma presence (comma indicates decimal separator = Indonesian/EU style)
+  const hasComma = raw.includes(',');
+  const hasDot = raw.includes('.');
+  
+  let normalized = raw;
+  
+  if (hasComma && hasDot) {
+    // Format: 16.000,00 or 16.000,0 (comma is decimal sep, dot is thousands sep - Indonesian)
+    // Remove dots, keep comma, then split to remove decimals
+    normalized = raw.replace(/\./g, '').split(',')[0];
+  } else if (hasComma && !hasDot) {
+    // Format: 16,000.00 (US style, comma is thousands sep)
+    // This shouldn't happen in Indonesian context, but handle it
+    normalized = raw.replace(/,/g, '').split('.')[0];
+  } else if (hasDot && !hasComma) {
+    // Format: 12.000 or 12,000.00 → need to determine if dot is thousands or decimal
+    // In Indonesian context (Rp prefix), dot is always thousands separator
+    // In US context, dot is always decimal separator
+    // Rule: if it looks like "XX.XXX" (dot divides into 2 or 3 digits on right), it's thousands sep
+    const parts = raw.split('.');
+    if (parts[parts.length - 1].length === 3) {
+      // Format: 12.000 (dot is thousands separator - Indonesian)
+      normalized = raw.replace(/\./g, '');
+    } else {
+      // Format: 12.50 (dot is decimal separator)
+      normalized = raw.split('.')[0];
+    }
+  }
+  // else: plain number, no separators
+  
+  // Extract only digits
+  const result = parseInt(normalized.replace(/\D/g, ''), 10);
+  return isNaN(result) ? 0 : result;
 }
 
 /**
@@ -105,17 +146,30 @@ function isValidAmount(amount: number): boolean {
 function extractAmountByLabel(text: string): number | null {
   // More flexible patterns that handle various formats
   const patterns = [
-    // "Total" patterns
-    /total\s*:?\s*rp?\.?\s*([\d.,]+)/i,
-    /total\s*rp([\d.,]+)/i,
-    /total\s+([\d.,]+)/i,
+    // "Total Nominal" patterns (Bima Bank format)
+    /total\s+nominal\s*:?\s*idr?\.?\s*([\d.,]+)/i,
     
     // "Nominal" patterns
+    /nominal\s*:?\s*idr?\.?\s*([\d.,]+)/i,
     /nominal\s*:?\s*rp?\.?\s*([\d.,]+)/i,
     /nominal\s*rp([\d.,]+)/i,
     /nominal\s+([\d.,]+)/i,
     
-    // Direct "Rp" patterns (must be at least 4 chars like Rp12.000 or Rp12,000)
+    // "Pembayaran" patterns (Bima Bank: "Pembayaran QR")
+    /pembayaran\s*(?:qr|qt|q\.r)?:?\s*idr?\.?\s*([\d.,]+)/i,
+    /pembayaran\s*(?:qr|qt|q\.r)?:?\s*rp?\.?\s*([\d.,]+)/i,
+    
+    // "Total" patterns
+    /total\s*:?\s*idr?\.?\s*([\d.,]+)/i,
+    /total\s*:?\s*rp?\.?\s*([\d.,]+)/i,
+    /total\s+rp([\d.,]+)/i,
+    /total\s+([\d.,]+)/i,
+    
+    // Direct "IDR" patterns (Bima: "IDR 16.000,00")
+    /idr\s*\.?\s*([\d.,]+)/i,
+    /idr([\d.,]{4,})/i,
+    
+    // Direct "Rp" patterns
     /rp\s*\.?\s*([\d.,]+)/i,
     /rp([\d.,]{4,})/i,
     
@@ -143,13 +197,16 @@ function extractAmountByLabel(text: string): number | null {
 
 /**
  * Extract amount by finding largest valid candidate
+ * IMPROVED: Uses updated parseAmount that handles formatted numbers correctly
  */
 function extractByCandidates(text: string): number | null {
-  // Match various patterns: "rp12.000", "rp 12.000", "rp12000", "12.000", "12,000", etc
+  console.log('    Fallback: searching for amount candidates...');
+  
+  // Match various patterns with proper formatting support
   const patterns = [
-    /rp\s*\.?\s*([\d.,]+)/gi,      // Rp12.000 atau Rp 12.000
-    /([\d]{1,3}\.[\d]{3}(?:,[\d]{2})?)/gi, // 12.000 atau 12.000,00
-    /([\d]+)/gi                     // Any sequence of digits
+    /idr\s*\.?\s*([\d.,]+)/gi,      // IDR12.000 atau IDR 12.000 (Bima Bank)
+    /rp\s*\.?\s*([\d.,]+)/gi,       // Rp12.000 atau Rp 12.000
+    /([\d]{1,3}(?:\.[\d]{3})+(?:,[\d]{2})?)/gi, // 12.000 atau 12.000,00
   ];
 
   const candidates = new Set<number>();
@@ -159,11 +216,11 @@ function extractByCandidates(text: string): number | null {
     while ((match = pattern.exec(text)) !== null) {
       const raw = match[1] || match[0];
       const amount = parseAmount(raw);
-      console.log(`    Candidate pattern ${pattern}: "${raw}" → ${amount}`);
+      console.log(`      Candidate: "${raw}" → ${amount}`);
       
       if (isValidAmount(amount)) {
         candidates.add(amount);
-        console.log(`      ✅ Valid: ${amount}`);
+        console.log(`        ✅ Valid: ${amount}`);
       }
     }
   }
@@ -231,9 +288,18 @@ export function validatePayment(text: string, expectedAmount: number): boolean {
 
   const lowerText = text.toLowerCase();
 
-  // Check 1: Verify outlet identifier
+  // Check 1: Verify outlet identifier (support both Semarang and other outlets)
   console.log('Check 1: Outlet identifier...');
-  const outletKeywords = ['ayam jukut cabe ijo', 'ayam jukut', 'cabe ijo', 'jkt'];
+  const outletKeywords = [
+    'ayam jukut cabe ijo',     // Full name
+    'ayam jukut',              // Partial
+    'cabe ijo',                // Partial
+    'jkt',                     // Abbreviation
+    'jkut',                    // Alternative spelling
+    'jukut cabe',              // Reverse order
+    'semarang',                // City (Bima: Semarang Kota)
+    'semarang kota',           // City + subregion
+  ];
   const hasOutletMatch = outletKeywords.some(keyword => lowerText.includes(keyword));
   
   if (!hasOutletMatch) {
@@ -244,9 +310,18 @@ export function validatePayment(text: string, expectedAmount: number): boolean {
   }
   console.log('✅ Outlet identifier found\n');
 
-  // Check 2: Success keywords ("berhasil", "success", "lunas", "paid", "kamu membayar", "pembayaran")
-  console.log('Check 2: Success keywords...');
-  const successKeywords = ['berhasil', 'success', 'lunas', 'paid', 'kamu membayar', 'pembayaran'];
+  // Check 2: Success keywords + Bank info (Bima shows "berhasil", "status transaksi" header, etc)
+  console.log('Check 2: Success/Completion keywords...');
+  const successKeywords = [
+    'berhasil',              // Bima Bank: "Status transaksi Berhasil"
+    'success',               // English
+    'lunas',                 // Fully paid
+    'paid',                  // English
+    'kamu membayar',         // User paid
+    'pembayaran',            // Payment
+    'status transaksi',      // Bima Bank header
+    'transaksi',             // Transaction (Bima Bank format)
+  ];
   const foundKeywords = successKeywords.filter(kw => lowerText.includes(kw));
   const hasSuccess = foundKeywords.length > 0;
 

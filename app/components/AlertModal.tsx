@@ -13,6 +13,7 @@ interface AlertModalProps {
   // New props for payment verification
   noOrder?: string;
   totalAmount?: number;
+  baseMessage?: string;
   onPaymentConfirmed?: (cloudinaryUrl?: string) => void;
 }
 
@@ -25,6 +26,7 @@ export default function AlertModal({
   whatsappMessage,
   noOrder,
   totalAmount,
+  baseMessage,
   onPaymentConfirmed,
 }: AlertModalProps) {
   const [copySuccess, setCopySuccess] = useState(false);
@@ -34,6 +36,9 @@ export default function AlertModal({
     message: string;
   } | null>(null);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isSubmittingManual, setIsSubmittingManual] = useState(false);
+  const [savedCloudinaryUrl, setSavedCloudinaryUrl] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const handleCopyMessage = async () => {
@@ -72,10 +77,35 @@ export default function AlertModal({
         onPaymentConfirmed?.(result.cloudinaryUrl);
       } else {
         console.log('Payment verification failed - invalid payment');
-        setVerificationResult({
-          success: false,
-          message: '❌ Verifikasi gagal. Pastikan bukti pembayaran valid dan jumlah sesuai.'
-        });
+        const newRetryCount = retryCount + 1;
+        setRetryCount(newRetryCount);
+        
+        if (newRetryCount >= 3) {
+          // On 3rd attempt: upload to Cloudinary and save to database (hidden from user)
+          try {
+            console.log('3rd attempt - uploading payment proof...');
+            const { uploadToCloudinary } = await import('../lib/payment-verification');
+            const cloudinaryUrl = await uploadToCloudinary(file);
+            console.log('Payment proof uploaded to Cloudinary (hidden from user)');
+            
+            // Save to database
+            await confirmPayment(noOrder, cloudinaryUrl, false); // false = payment pending verification
+            setSavedCloudinaryUrl(cloudinaryUrl);
+            console.log('Payment proof saved to database');
+          } catch (uploadError) {
+            console.error('Failed to upload on 3rd attempt:', uploadError);
+          }
+          
+          setVerificationResult({
+            success: false,
+            message: `❌ Verifikasi gagal ${newRetryCount}x. Kirim bukti pembayaran ke admin dengan pesan di bawah.`
+          });
+        } else {
+          setVerificationResult({
+            success: false,
+            message: `❌ Verifikasi gagal (${newRetryCount}/3). Pastikan bukti pembayaran valid dan jumlah sesuai.`
+          });
+        }
       }
     } catch (error) {
       console.error('Verification error:', error);
@@ -122,6 +152,33 @@ export default function AlertModal({
       // Reload halaman untuk state fresh
       window.location.reload();
     }, 500);
+  };
+
+  const handleManualConfirmation = async () => {
+    if (!noOrder) {
+      console.warn('Order number tidak tersedia');
+      return;
+    }
+
+    setIsSubmittingManual(true);
+    try {
+      console.log('Manual confirmation triggered - payment proof already saved');
+      // Payment proof already saved on 3rd attempt, just mark as confirmed
+      setVerificationResult({
+        success: true,
+        message: '✅ Pesanan dikonfirmasi! Silakan kirim bukti pembayaran ke admin.'
+      });
+      setPaymentConfirmed(true);
+      onPaymentConfirmed?.(savedCloudinaryUrl);
+    } catch (error) {
+      console.error('Manual confirmation error:', error);
+      setVerificationResult({
+        success: false,
+        message: '❌ Gagal mengkonfirmasi pesanan. Silakan coba lagi atau hubungi admin.'
+      });
+    } finally {
+      setIsSubmittingManual(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -219,8 +276,8 @@ export default function AlertModal({
               <div className="bg-gradient-to-r from-blue-100 to-cyan-100 border-2 border-blue-400 rounded-xl md:rounded-2xl p-4 md:p-6 lg:p-6 shadow-md">
                 <p className="text-xs md:text-sm lg:text-sm font-bold text-blue-900 mb-3 md:mb-4 lg:mb-3">📝 LANGKAH SELANJUTNYA:</p>
                 <ol className="text-xs md:text-sm lg:text-sm text-blue-800 space-y-2 md:space-y-2.5 list-decimal list-inside font-semibold leading-snug">
-                  <li>Simpan <strong>bukti pembayaran QRIS</strong> (screenshot bukti pembayaran yang jelas)</li>
-                  <li>Klik tombol <strong>\"TERUSKAN PESANAN\"</strong> di bawah</li>
+                  <li>Upload <strong>bukti pembayaran QRIS</strong> (screenshot bukti pembayaran yang jelas)</li>
+                  <li>Klik tombol <strong>"TERUSKAN PESANAN"</strong> di bawah</li>
                   <li>Kirim bukti pembayaran ke admin bersama pesan template yang ada jika link bukti pembayaran tidak tersedia</li>
                 </ol>
               </div>
@@ -262,6 +319,95 @@ export default function AlertModal({
                   <p className="text-sm font-semibold">{verificationResult.message}</p>
                 </div>
               )}
+
+              {/* Manual Confirmation Button - Show after 3 failed attempts */}
+              {retryCount >= 3 && !paymentConfirmed && (
+                <div className="mt-4 p-4 rounded-xl border-2 border-orange-400 bg-orange-50 space-y-3">
+                  <p className="text-sm font-bold text-orange-900">
+                    💡 Opsi: Lanjutkan dengan Konfirmasi Manual
+                  </p>
+                  <p className="text-xs text-orange-800">
+                    Kirim bukti pembayaran langsung ke admin bersama pesan pesanan tanpa verifikasi otomatis.
+                  </p>
+                  <button
+                    onClick={handleManualConfirmation}
+                    disabled={isSubmittingManual}
+                    className={`w-full px-6 py-3 rounded-lg font-bold text-white transition-all active:scale-95 flex items-center justify-center gap-2 ${
+                      isSubmittingManual
+                        ? 'bg-gray-400 cursor-not-allowed'
+                        : 'bg-orange-500 hover:bg-orange-600'
+                    }`}
+                  >
+                    <span className="text-lg">
+                      {isSubmittingManual ? '⏳' : '📬'}
+                    </span>
+                    <span>
+                      {isSubmittingManual ? 'Memproses...' : 'Konfirmasi Manual'}
+                    </span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {type === 'success' && paymentConfirmed && retryCount >= 3 && (
+            <div className="mb-6 md:mb-8 space-y-4 md:space-y-5 lg:space-y-4">
+              {/* Info Box */}
+              <div className="bg-blue-50 border-2 border-blue-400 rounded-lg p-3 md:p-4 lg:p-4">
+                <p className="text-xs md:text-sm lg:text-xs text-blue-900 font-semibold text-center">
+                  ℹ️ Order Anda telah disimpan. Kirim pesan di bawah ke admin bersama bukti pembayaran melalui WhatsApp.
+                </p>
+              </div>
+
+              {/* Manual Template Message - same format as automatic, just without link */}
+              <div className="space-y-3 md:space-y-4 lg:space-y-3">
+                  <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl p-4 md:p-5 lg:p-5">
+                      <p className="text-xs md:text-sm lg:text-xs text-yellow-700 font-bold mb-3 md:mb-4 uppercase">📋 Template Pesan untuk Admin (Salin & Kirim):</p>
+                      <div className="text-xs md:text-sm lg:text-xs text-gray-700 whitespace-pre-wrap font-mono max-h-48 md:max-h-56 overflow-y-auto bg-white rounded p-3 md:p-4 border border-gray-300 leading-relaxed">
+{baseMessage ? `${baseMessage}Bukti Pembayaran :` : `!!JANGAN UBAH PESAN INI!!
+
+${noOrder}
+
+Pembayaran QRIS
+
+Bukti Pembayaran :`}
+                      </div>
+                  </div>
+                  
+                  <button
+                  onClick={() => {
+                    const manualMessage = baseMessage 
+                      ? `${baseMessage}Bukti Pembayaran :`
+                      : `!!JANGAN UBAH PESAN INI!!
+
+${noOrder}
+
+Pembayaran QRIS
+
+Bukti Pembayaran :`;
+                    navigator.clipboard.writeText(manualMessage);
+                    setCopySuccess(true);
+                    setTimeout(() => setCopySuccess(false), 2000);
+                  }}
+                  className={`w-full px-4 md:px-6 lg:px-6 py-3 md:py-3.5 lg:py-3 text-xs md:text-base lg:text-sm rounded-xl md:rounded-xl transition-all font-bold shadow-sm active:scale-95 flex items-center justify-center gap-2 ${
+                      copySuccess 
+                      ? 'bg-green-100 text-green-700 border-2 border-green-500 scale-105' 
+                      : 'bg-white border-2 border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400'
+                  }`}
+                  >
+                  {copySuccess ? (
+                      <><span className="text-lg md:text-xl">✅</span> <span>Berhasil Disalin!</span></>
+                  ) : (
+                      <><span className="text-lg md:text-xl">📋</span> <span>Salin Pesan</span></>
+                  )}
+                  </button>
+              </div>
+
+              {/* Admin Contact */}
+              <div className="bg-gradient-to-r from-purple-100 to-pink-100 border-2 border-purple-300 rounded-lg md:rounded-xl p-3 md:p-5 lg:p-5 text-center shadow-sm">
+                <p className="text-xs md:text-sm lg:text-xs text-purple-700 font-bold mb-1 md:mb-2 uppercase">📱 Kirim Pesan + Bukti Pembayaran Ke:</p>
+                <a href="https://wa.me/62882007448066" target="_blank" rel="noopener noreferrer" className="inline-block text-sm md:text-base lg:text-base font-bold text-purple-900 font-mono hover:text-white bg-gradient-to-r hover:from-purple-600 hover:to-pink-600 px-4 py-2 rounded-lg transition-all duration-300">+62 882-0074-48066</a>
+              </div>
             </div>
           )}
 
@@ -325,7 +471,7 @@ export default function AlertModal({
               {/* Admin Contact */}
               <div className="bg-gradient-to-r from-purple-100 to-pink-100 border-2 border-purple-300 rounded-lg md:rounded-xl p-3 md:p-5 lg:p-5 text-center shadow-sm">
                 <p className="text-xs md:text-sm lg:text-xs text-purple-700 font-bold mb-1 md:mb-2 uppercase">📱 Hubungi Admin Jika Ada Kendala</p>
-                <p className="text-sm md:text-base lg:text-base font-bold text-purple-900 font-mono">+62 882-0074-48066</p>
+                <a href="https://wa.me/62882007448066" target="_blank" rel="noopener noreferrer" className="inline-block text-sm md:text-base lg:text-base font-bold text-purple-900 font-mono hover:text-white bg-gradient-to-r hover:from-purple-600 hover:to-pink-600 px-4 py-2 rounded-lg transition-all duration-300">+62 882-0074-48066</a>
               </div>
             </div>
           )}

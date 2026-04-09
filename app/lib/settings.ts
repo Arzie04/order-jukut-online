@@ -8,7 +8,7 @@
 //    - true  : Toko dianggap SELALU BUKA (bypass jam operasional & limit order).
 //              Halaman '/closed' bisa diakses manual meski statusnya 'off'.
 //    - false : Aplikasi berjalan normal sesuai aturan bisnis.
-export const DEVELOPER_MODE = false;
+export const DEVELOPER_MODE = true;
 
 // 2. STATUS HALAMAN TUTUP (MAINTENANCE / LIBUR PANJANG)
 //    - 'on'  : Halaman /closed AKTIF. Jika jam operasional 00.00, user dilempar ke sini.
@@ -24,4 +24,4 @@ export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxEVHfzL
 export const CLOUDINARY_CLOUD_NAME = 'dbqjqi8ke';
 
 
-//Release Version 1.0.0 - 2024-06-01 by Jukut Team , Ardanu Zidan Nur Rofiq a.k.a. Arzie 
+//Release Version 1.0.0 - 2026-04-12 by Jukut Team , Ardanu Zidan Nur Rofiq a.k.a. Arzie 

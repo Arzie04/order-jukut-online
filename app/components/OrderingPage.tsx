@@ -45,6 +45,7 @@ export interface OrderingPageProps {
   isSubmitting?: boolean; // Add isSubmitting
   whatsappUrl: string;
   whatsappMessage: string;
+  baseMessage?: string;
   priceMap: { [key: string]: number };
   isNdjOutOfStock?: boolean;
   // New props for payment verification
@@ -66,7 +67,7 @@ export interface OrderingPageProps {
 export default function OrderingPage({
   name, note, total, calcDetails, showCalcResult, alert, isStoreOpen,
   statusReason, openingTimeText, closingTimeText, stock, orderItems,
-  isSubmitting, whatsappUrl, whatsappMessage, priceMap, isNdjOutOfStock,
+  isSubmitting, whatsappUrl, whatsappMessage, baseMessage, priceMap, isNdjOutOfStock,
   noOrder, currentOrderTotal, onPaymentConfirmed,
   setName, setNote, setAlert, calculateTotal, handleOpenConfirm,
   handleModalSubmit, handleAddOrUpdateItem
@@ -166,6 +167,7 @@ export default function OrderingPage({
         onClose={closeAlert}
         whatsappUrl={whatsappUrl} 
         whatsappMessage={whatsappMessage}
+        baseMessage={baseMessage}
         noOrder={noOrder}
         totalAmount={currentOrderTotal}
         onPaymentConfirmed={onPaymentConfirmed}

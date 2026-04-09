@@ -187,7 +187,7 @@ export default function ConfirmationModal({
                   <div className="bg-blue-50/90 border-2 border-blue-300 rounded-xl md:rounded-2xl lg:rounded-2xl p-4 md:p-5 lg:p-6 shadow-md">
                     <p className="text-sm md:text-base lg:text-lg font-bold text-blue-900 mb-2 md:mb-3 lg:mb-3">📱 Cara Bayar:</p>
                     <p className="text-xs md:text-sm lg:text-base text-blue-800 leading-relaxed font-medium">
-                      Buka e-wallet → Scan QRIS → Verifikasi nominal → Bayar → Kirim bukti ke WhatsApp Admin
+                      Buka e-wallet → Scan QRIS → Verifikasi nominal → Bayar → Kirim Upload Bukti Pembayaran di halaman berikutnya
                     </p>
                   </div>
                 </div>

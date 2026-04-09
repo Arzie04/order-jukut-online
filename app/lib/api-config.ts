@@ -16,6 +16,7 @@ export const API_CONFIG = {
     ORDER_ITEM_COUNT: 'config?api=orderItemCount',
     STOCK: 'stock',
     CONFIG: 'config?api=config',
+    GET_NEXT_ORDER_ID: 'config?api=getNextOrderId', // SC-A5: Get next order ID
     ITEMS_WITH_LINKS: 'config?api=itemsWithLinks',
     UPDATE_STOCK: 'stock',
     UPDATE_STATUS: 'config?api=updateStatus'
@@ -42,6 +43,7 @@ export const API_URLS = {
   ORDER_ITEM_COUNT: buildApiUrl(API_CONFIG.ENDPOINTS.ORDER_ITEM_COUNT),
   STOCK: buildApiUrl(API_CONFIG.ENDPOINTS.STOCK),
   CONFIG: buildApiUrl(API_CONFIG.ENDPOINTS.CONFIG),
+  GET_NEXT_ORDER_ID: buildApiUrl(API_CONFIG.ENDPOINTS.GET_NEXT_ORDER_ID),
   ITEMS_WITH_LINKS: buildApiUrl(API_CONFIG.ENDPOINTS.ITEMS_WITH_LINKS),
   UPDATE_STOCK: buildApiUrl(API_CONFIG.ENDPOINTS.UPDATE_STOCK),
   UPDATE_STATUS: buildApiUrl(API_CONFIG.ENDPOINTS.UPDATE_STATUS)
