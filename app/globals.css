@@ -16,12 +16,58 @@ body {
   }
 }
 
+@keyframes moveGradientGreen {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 .animated-gradient {
-  background-image: url('/Ornamen/Maintenance/Maintenance Web (compress).png');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
+  background: linear-gradient(-45deg, #166534, #15803d, #22c55e, #86efac);
+  background-size: 400% 400%;
+  animation: moveGradient 15s ease infinite;
   min-height: 100vh;
+}
+
+.animated-gradient-green {
+  background: linear-gradient(-45deg, #166534, #15803d, #22c55e, #86efac);
+  background-size: 400% 400%;
+  animation: moveGradientGreen 15s ease infinite;
+  min-height: 100vh;
+}
+
+.gradient-green-text {
+  background: linear-gradient(135deg, #166534, #15803d, #22c55e);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: moveGradientGreen 8s ease infinite;
+}
+
+.gradient-green-border {
+  position: relative;
+  overflow: hidden;
+}
+
+.gradient-green-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, #166534, #15803d, #22c55e, #15803d, #166534);
+  background-size: 200% 200%;
+  animation: moveGradientGreen 6s ease infinite;
+}
+
+.gradient-green-box {
+  background: linear-gradient(135deg, rgba(22, 101, 52, 0.8), rgba(21, 128, 61, 0.8), rgba(34, 197, 94, 0.8));
+  background-size: 400% 400%;
+  animation: moveGradientGreen 12s ease infinite;
+  backdrop-filter: blur(10px);
 }
 
