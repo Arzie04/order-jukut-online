@@ -47,6 +47,10 @@ export interface OrderingPageProps {
   whatsappMessage: string;
   priceMap: { [key: string]: number };
   isNdjOutOfStock?: boolean;
+  // New props for payment verification
+  noOrder?: string;
+  currentOrderTotal?: number;
+  onPaymentConfirmed?: (cloudinaryUrl?: string) => void;
 
   // Handlers from parent
   setName: (name: string) => void;
@@ -63,6 +67,7 @@ export default function OrderingPage({
   name, note, total, calcDetails, showCalcResult, alert, isStoreOpen,
   statusReason, openingTimeText, closingTimeText, stock, orderItems,
   isSubmitting, whatsappUrl, whatsappMessage, priceMap, isNdjOutOfStock,
+  noOrder, currentOrderTotal, onPaymentConfirmed,
   setName, setNote, setAlert, calculateTotal, handleOpenConfirm,
   handleModalSubmit, handleAddOrUpdateItem
 }: OrderingPageProps) {
@@ -160,7 +165,10 @@ export default function OrderingPage({
         message={alert?.message || ''} 
         onClose={closeAlert}
         whatsappUrl={whatsappUrl} 
-        whatsappMessage={whatsappMessage} 
+        whatsappMessage={whatsappMessage}
+        noOrder={noOrder}
+        totalAmount={currentOrderTotal}
+        onPaymentConfirmed={onPaymentConfirmed}
       />
       <ComingSoonModal isOpen={showComingSoonModal} onClose={() => setShowComingSoonModal(false)} />
       

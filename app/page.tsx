@@ -46,7 +46,11 @@ export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [whatsappUrl, setWhatsappUrl] = useState('');
   const [whatsappMessage, setWhatsappMessage] = useState('');
+  const [baseMessage, setBaseMessage] = useState<string>('');
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [currentOrderNumber, setCurrentOrderNumber] = useState<string>('');
+  const [paymentProofUrl, setPaymentProofUrl] = useState<string>('');
+  const [currentOrderTotal, setCurrentOrderTotal] = useState<number>(0);
 
   useEffect(() => {
     if (DEVELOPER_MODE) {
@@ -59,6 +63,53 @@ export default function Home() {
       window.location.href = '/closed';
     }
   }, [openingTimeText, closingTimeText, CLOSED_PAGE_STATUS]);
+
+  // Restore order state from localStorage on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const savedOrderData = localStorage.getItem('jukut_last_order');
+    if (savedOrderData) {
+      try {
+        const data = JSON.parse(savedOrderData);
+        setName(data.name || '');
+        setNote(data.note || '');
+        setOrderItems(data.orderItems || []);
+        setTotal(data.total || 0);
+        setCurrentOrderNumber(data.currentOrderNumber || '');
+        setCurrentOrderTotal(data.currentOrderTotal || 0);
+        setWhatsappMessage(data.whatsappMessage || '');
+        setWhatsappUrl(data.whatsappUrl || '');
+        setBaseMessage(data.baseMessage || '');
+        setPaymentProofUrl(data.paymentProofUrl || '');
+        console.log('Restored order data from localStorage');
+      } catch (e) {
+        console.error('Failed to restore order data:', e);
+      }
+    }
+  }, []);
+
+  // Save order state to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    // Only save if there's actual order data
+    if (currentOrderNumber || whatsappMessage) {
+      const orderData = {
+        name,
+        note,
+        orderItems,
+        total,
+        currentOrderNumber,
+        currentOrderTotal,
+        whatsappMessage,
+        whatsappUrl,
+        baseMessage,
+        paymentProofUrl,
+      };
+      localStorage.setItem('jukut_last_order', JSON.stringify(orderData));
+    }
+  }, [name, note, orderItems, total, currentOrderNumber, currentOrderTotal, whatsappMessage, whatsappUrl, baseMessage, paymentProofUrl]);
 
   // --- LOGIC MOVED FROM OrderingPage ---
 
@@ -236,6 +287,7 @@ export default function Home() {
     try {
       // Step 1: Calculate Order ID client-side (Prediction)
       const orderNumber = await getNextOrderId();
+      setCurrentOrderNumber(orderNumber);
 
       // Step 2: Fire-and-forget submission to Google Form
       await fetch(GOOGLE_FORM_URL, {
@@ -281,12 +333,16 @@ export default function Home() {
       if (note) {
           waMessage += `Note : ${note}\n`;
       }
-      waMessage += `total ${total.toLocaleString('id-ID')}\n\nPembayaran QRIS\n\n*kirim bukti pembayaran disini :\n`;
+      waMessage += `total ${total.toLocaleString('id-ID')}\n\nPembayaran QRIS\n\n`;
 
-      const waUrl = `https://wa.me/62882007448066?text=${encodeURIComponent(waMessage)}`;
-      
-      setWhatsappMessage(waMessage);
-      setWhatsappUrl(waUrl);
+      // Store base message untuk digabung dengan bukti pembayaran nanti
+      setBaseMessage(waMessage);
+      // Kosongkan message dan url sampai pembayaran dikonfirmasi
+      setWhatsappMessage('');
+      setWhatsappUrl('');
+
+      // Store order total before resetting (for payment verification later)
+      setCurrentOrderTotal(total);
 
       setAlert({
         type: 'success',
@@ -351,48 +407,166 @@ export default function Home() {
   }, [isWithinOpeningHours]);
 
   const fetchConfigAndOrders = useCallback(async () => {
-    try {
-      const [configRes, ordersRes] = await Promise.all([
-        fetch(API_URLS.CONFIG),
-        fetch(API_URLS.ORDERS)
-      ]);
-      const configData = await configRes.json();
-      const ordersData = await ordersRes.json();
+    const maxRetries = 3;
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`Fetching config/orders attempt ${attempt}/${maxRetries}`);
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        
+        const [configRes, ordersRes] = await Promise.all([
+          fetch(API_URLS.CONFIG, {
+            headers: {
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache'
+            },
+            signal: controller.signal
+          }),
+          fetch(API_URLS.ORDERS, {
+            headers: {
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache'
+            },
+            signal: controller.signal
+          })
+        ]);
+        
+        clearTimeout(timeoutId);
+        
+        if (!configRes.ok || !ordersRes.ok) {
+          throw new Error(`HTTP Error - Config: ${configRes.status}, Orders: ${ordersRes.status}`);
+        }
+        
+        const configData = await configRes.json();
+        const ordersData = await ordersRes.json();
+        
+        console.log('Config/orders data fetched successfully');
 
-      // Process config
-      const jamBuka = configData.jam_buka?.trim() || null;
-      const jamTutup = configData.jam_tutup?.trim() || null;
-      const cfgMax = Number(configData.max_pesanan) || 15;
-      setOpeningTimeText(jamBuka?.replace(':', '.') || '10.00');
-      setClosingTimeText(jamTutup?.replace(':', '.') || '15.30');
-      setMaxOrders(cfgMax);
-      
-      // Process orders
-      const today = new Date();
-      const orderCount = Array.isArray(ordersData) ? ordersData.filter((row: any) => {
-        if (!row?.no_order || !row?.waktu) return false;
-        const t = new Date(row.waktu);
-        return t.getFullYear() === today.getFullYear() && t.getMonth() === today.getMonth() && t.getDate() === today.getDate();
-      }).length : 0;
-      
-      // Set store status
-      const status = getDynamicStatus({ jamBuka, jamTutup, maxOrders: cfgMax }, orderCount);
-      setIsStoreOpen(status.isOpen);
-      setStatusReason(status.reason);
-    } catch (e) {
-      console.error("Error fetching config/orders:", e);
-      setIsStoreOpen(false);
-      setStatusReason('Gagal memuat status outlet.');
+        // Process config
+        const jamBuka = configData.jam_buka?.trim() || null;
+        const jamTutup = configData.jam_tutup?.trim() || null;
+        const cfgMax = Number(configData.max_pesanan) || 15;
+        setOpeningTimeText(jamBuka?.replace(':', '.') || '10.00');
+        setClosingTimeText(jamTutup?.replace(':', '.') || '15.30');
+        setMaxOrders(cfgMax);
+        
+        // Process orders
+        const today = new Date();
+        const orderCount = Array.isArray(ordersData) ? ordersData.filter((row: any) => {
+          if (!row?.no_order || !row?.waktu) return false;
+          const t = new Date(row.waktu);
+          return t.getFullYear() === today.getFullYear() && t.getMonth() === today.getMonth() && t.getDate() === today.getDate();
+        }).length : 0;
+        
+        // Set store status
+        const status = getDynamicStatus({ jamBuka, jamTutup, maxOrders: cfgMax }, orderCount);
+        setIsStoreOpen(status.isOpen);
+        setStatusReason(status.reason);
+        
+        return; // Success - exit retry loop
+        
+      } catch (error) {
+        lastError = error as Error;
+        console.error(`Config/orders fetch attempt ${attempt} failed:`, error);
+        
+        if (attempt === maxRetries) {
+          console.error('All config/orders fetch attempts failed:', lastError?.message);
+          
+          // Provide more specific error messages based on error type
+          if (lastError?.message?.includes('403')) {
+            setStatusReason('API tidak dapat diakses (403 Forbidden). Google Apps Script perlu di-deploy ulang. Silakan hubungi administrator.');
+          } else if (lastError?.message?.includes('404')) {
+            setStatusReason('API tidak ditemukan (404). URL deployment mungkin berubah. Silakan hubungi administrator.');
+          } else if (lastError?.name === 'AbortError') {
+            setStatusReason('Koneksi timeout. Server Google Apps Script mungkin sedang sibuk. Silakan coba lagi dalam beberapa menit.');
+          } else if (lastError?.message?.includes('NetworkError') || lastError?.message?.includes('fetch')) {
+            setStatusReason('Tidak dapat terhubung ke server Google Apps Script. Kemungkinan: 1) Script perlu di-deploy ulang, 2) Masalah CORS, atau 3) Koneksi internet bermasalah.');
+          } else if (lastError?.message?.includes('Moved Temporarily') || lastError?.message?.includes('302')) {
+            setStatusReason('Google Apps Script deployment sudah kadaluarsa. Script perlu di-deploy ulang dengan URL baru.');
+          } else {
+            setStatusReason('Gagal memuat status outlet. Google Apps Script mungkin perlu di-deploy ulang. Silakan hubungi administrator.');
+          }
+          
+          setIsStoreOpen(false);
+          break;
+        }
+        
+        // Wait before retrying
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+        console.log(`Retrying config/orders fetch in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
     }
   }, [getDynamicStatus]);
 
   const fetchStock = useCallback(async () => {
-    try {
-      const res = await fetch('https://script.google.com/macros/s/AKfycbxEVHfzLO5ghRZg-f5A2KsYROBALRqTcAPQQ9nxX2tmU1KEaZWisoYyvJA19RPRu8Kf/exec?api=stock');
-      const data = await res.json();
-      if (Array.isArray(data)) setStock(data);
-    } catch (e) {
-      console.error("Error fetching stock:", e);
+    const maxRetries = 3;
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`Fetching stock attempt ${attempt}/${maxRetries}`);
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        
+        const res = await fetch(API_URLS.STOCK, {
+          method: 'GET',
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          },
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        
+        const data = await res.json();
+        console.log('Stock data fetched successfully:', data);
+        
+        if (Array.isArray(data)) {
+          setStock(data);
+          return; // Success - exit retry loop
+        } else {
+          throw new Error('Invalid data format received');
+        }
+        
+      } catch (error) {
+        lastError = error as Error;
+        console.error(`Stock fetch attempt ${attempt} failed:`, error);
+        
+        // If this is the last attempt, log the final error and set fallback stock
+        if (attempt === maxRetries) {
+          console.error('All stock fetch attempts failed:', lastError?.message);
+          
+          // Provide more specific error handling for stock fetch
+          if (lastError?.message?.includes('403')) {
+            console.warn('Stock API access forbidden - using empty stock data');
+          } else if (lastError?.message?.includes('404')) {
+            console.warn('Stock API not found - using empty stock data');
+          } else if (lastError?.name === 'AbortError') {
+            console.warn('Stock fetch timeout - using empty stock data');
+          } else if (lastError?.message?.includes('NetworkError') || lastError?.message?.includes('fetch')) {
+            console.warn('Network error fetching stock - using empty stock data');
+          }
+          
+          // Set empty stock array as fallback to prevent app crash
+          setStock([]);
+          break;
+        }
+        
+        // Wait before retrying
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+        console.log(`Retrying stock fetch in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
     }
   }, []);
 
@@ -453,6 +627,26 @@ export default function Home() {
           whatsappMessage={whatsappMessage}
           priceMap={priceMap}
           isNdjOutOfStock={isNdjOutOfStock}
+          noOrder={currentOrderNumber}
+          currentOrderTotal={currentOrderTotal}
+          onPaymentConfirmed={(cloudinaryUrl?: string) => {
+            // Gabungkan baseMessage dengan bukti pembayaran menggunakan payment-proof page
+            if (cloudinaryUrl) {
+              setPaymentProofUrl(cloudinaryUrl);
+              // Buat link ke payment-proof page dengan Open Graph meta tags
+              const paymentProofLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/payment-proof?url=${encodeURIComponent(cloudinaryUrl)}&order=${currentOrderNumber}`;
+              // Buat message final dengan link ke payment-proof (akan jadi thumbnail di WhatsApp)
+              const finalMessage = `${baseMessage}Bukti Pembayaran : ${paymentProofLink}`;
+              const waUrl = `https://wa.me/62882007448066?text=${encodeURIComponent(finalMessage)}`;
+              
+              setWhatsappMessage(finalMessage);
+              setWhatsappUrl(waUrl);
+              console.log('Payment confirmed with proof:', cloudinaryUrl);
+              console.log('Payment proof link:', paymentProofLink);
+            } else {
+              console.log('Payment confirmed for order:', currentOrderNumber);
+            }
+          }}
         />
       </div>
     </>

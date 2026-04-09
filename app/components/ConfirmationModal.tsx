@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { generateQrisInfo, formatAmount } from '@/app/lib/qris-generator';
+import { generateQrisInfo } from '@/app/lib/qris-generator';
 
 interface ConfirmationModalProps {
   isOpen: boolean;
@@ -25,8 +25,8 @@ export default function ConfirmationModal({
 }: ConfirmationModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const [showQris, setShowQris] = useState(false);
-  const [qrisCountdown, setQrisCountdown] = useState(5);
-  const [buttonCountdown, setButtonCountdown] = useState(10);
+  const [qrisCountdown, setQrisCountdown] = useState(10);
+  const [buttonCountdown, setButtonCountdown] = useState(15);
   const [buttonEnabled, setButtonEnabled] = useState(false);
   const [qrisInfo, setQrisInfo] = useState<any>(null);
 
@@ -38,8 +38,8 @@ export default function ConfirmationModal({
       document.body.style.overflow = 'hidden';
       // Reset countdown
       setShowQris(false);
-      setQrisCountdown(5);
-      setButtonCountdown(10);
+      setQrisCountdown(10);
+      setButtonCountdown(15);
       setButtonEnabled(false);
       // Generate QRIS dinamis berdasarkan nominal
       const info = generateQrisInfo(total);
@@ -162,31 +162,34 @@ export default function ConfirmationModal({
                       </div>
                     </div>
                   )}
-
+                </div>
+              ) : (
+                /* Countdown Display */
+                <div className="space-y-4 md:space-y-5 lg:space-y-5">
                   {/* Important Box - Prominent */}
-                  <div className="bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-300 rounded-xl md:rounded-2xl p-4 md:p-5 lg:p-5 shadow-md">
-                    <p className="text-sm md:text-lg lg:text-lg font-bold text-red-700 mb-2 md:mb-2">⚡ PENTING!</p>
-                    <ul className="text-xs md:text-sm lg:text-sm text-red-800 space-y-1.5 md:space-y-2 lg:space-y-1.5 text-left list-disc list-inside font-semibold leading-tight">
+                  <div className="bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-300 rounded-xl md:rounded-2xl lg:rounded-2xl p-4 md:p-5 lg:p-6 shadow-md">
+                    <p className="text-sm md:text-base lg:text-lg font-bold text-red-700 mb-2 md:mb-3 lg:mb-3">⚡ PENTING!</p>
+                    <ul className="text-xs md:text-sm lg:text-base text-red-800 space-y-1.5 md:space-y-2 lg:space-y-2 text-left list-disc list-inside font-semibold leading-relaxed">
                       <li>Cek nominal sesuai pesanan</li>
                       <li>Scan & bayar di e-wallet</li>
                       <li>Simpan bukti pembayaran</li>
                     </ul>
                   </div>
 
+                  {/* Countdown Section - Center */}
+                  <div className="flex flex-col items-center justify-center py-6 md:py-8 lg:py-10 space-y-3 md:space-y-4 lg:space-y-4 bg-gradient-to-b from-green-50/50 to-transparent rounded-2xl md:rounded-3xl lg:rounded-3xl">
+                    <p className="text-sm md:text-base lg:text-lg font-semibold text-gray-700">QRIS akan muncul dalam</p>
+                    <div className="text-7xl md:text-8xl lg:text-9xl font-black text-green-600 animate-pulse drop-shadow-lg">{qrisCountdown}</div>
+                    <p className="text-xs md:text-sm lg:text-base text-gray-600 font-medium">Harap tunggu sebentar...</p>
+                  </div>
+
                   {/* Payment Instructions */}
-                  <div className="bg-blue-50/80 border border-blue-300 rounded-xl md:rounded-2xl p-4 md:p-5 lg:p-5">
-                    <p className="text-xs md:text-sm lg:text-sm font-bold text-blue-900 mb-2 md:mb-2">📱 Cara Bayar:</p>
-                    <p className="text-xs md:text-sm lg:text-sm text-blue-800 leading-snug">
+                  <div className="bg-blue-50/90 border-2 border-blue-300 rounded-xl md:rounded-2xl lg:rounded-2xl p-4 md:p-5 lg:p-6 shadow-md">
+                    <p className="text-sm md:text-base lg:text-lg font-bold text-blue-900 mb-2 md:mb-3 lg:mb-3">📱 Cara Bayar:</p>
+                    <p className="text-xs md:text-sm lg:text-base text-blue-800 leading-relaxed font-medium">
                       Buka e-wallet → Scan QRIS → Verifikasi nominal → Bayar → Kirim bukti ke WhatsApp Admin
                     </p>
                   </div>
-                </div>
-              ) : (
-                /* Countdown Display */
-                <div className="flex flex-col items-center justify-center py-8 md:py-10 lg:py-10 space-y-4 md:space-y-5 lg:space-y-3">
-                  <p className="text-sm md:text-lg lg:text-lg font-semibold text-gray-700">QRIS akan muncul dalam</p>
-                  <div className="text-6xl md:text-7xl lg:text-8xl font-black text-green-600 animate-pulse">{qrisCountdown}</div>
-                  <p className="text-xs md:text-sm lg:text-sm text-gray-600">Harap tunggu sebentar...</p>
                 </div>
               )}
             </>

@@ -1,8 +1,12 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Recent Updates (April 8, 2026)
+## Recent Updates (April 9, 2026)
 
 ### New Features
+- **Enhanced Google Apps Script**: Updated with new API endpoints including `orderItemCount` and `updateStatus`
+- **Order Item Count API**: New endpoint to track daily order statistics and item counts
+- **Order Status Management**: Added functionality to update order status through API calls
+- **Improved Payment Confirmation**: Enhanced doPost handling for payment confirmation with better error handling
 - **Dynamic QRIS Code Generation**: Automatic QR code generation with CRC-16/CCITT validation for each order, injecting the exact nominal amount into the QRIS code
 - **Price Updates**: All items increased by Rp1,000 (except Tahu and Tempe which remain at Rp1,000)
 - **WhatsApp Integration**: Direct WhatsApp messaging with pulse border animations and copy-to-clipboard functionality
@@ -80,13 +84,17 @@ This application uses Google Sheets as a database through Google Apps Script. Th
 - Column D: status ("Tersedia", "Hampir Habis", "Terjual Habis")
 - Column E: catatan (notes)
 
-**Orders Sheet:**
-- Column A: no_order (order number)
-- Column B: waktu (timestamp)
-- Column C: nama (customer name)
-- Column D: pesanan (order details)
+**Form Responses 1 Sheet (Orders):**
+- Column A: waktu (timestamp)
+- Column B: nama (customer name)
+- Column C: pesanan (order details)
+- Column D: note (customer notes)
 - Column E: total (total amount)
-- Column F: catatan (notes)
+- Column F: no_order (order number)
+- Column G: paid (payment status - boolean)
+- Column H: (reserved)
+- Column I: status (order status - "terbaru", "diproses", "selesai", etc.)
+- Column J: cloudinary_url (payment proof image URL)
 
 **Config Sheet:**
 - Column A: key (jam_buka, jam_tutup, max_pesanan)

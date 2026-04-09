@@ -1,75 +1,32 @@
-/**
- * Google Apps Script untuk Order Jukut Online
- * VERSI BERSIH DAN DIPERBAIKI
- * 
- * Cara setup:
- * 1. Buka Google Spreadsheet Anda
- * 2. Klik Extensions > Apps Script
- * 3. Hapus kode default dan paste SELURUH kode ini
- * 4. Save dan deploy sebagai web app
- * 5. Set permissions: Execute as "Me", Access "Anyone"
- * 6. Copy URL web app yang dihasilkan dan update di frontend
- */
-
-// Konstanta untuk nama sheet
-const STOCK_SHEET_NAME = "Stok outlet Cempaka";
-const ORDERS_SHEET_NAME = "Form Responses 1";
-
 /* =========================
-   MAIN ENTRY POINTS
+   MAIN ENTRY POINT (doGet)
 ========================= */
-
 function doGet(e) {
   const api = e.parameter.api || "orders";
-  try {
-    if (api === "orders") return getOrders();
-    if (api === "stock") return getStock();
-    if (api === "config") return getConfig();
-    if (api === "itemsWithLinks") return getItemsWithLinks();
-    return jsonOutput({ error: "API tidak ditemukan" });
-  } catch (error) {
-    console.error("Error in doGet:", error);
-    return jsonOutput({ error: "Internal server error: " + error.message });
-  }
-}
 
-function doPost(e) {
-  try {
-    const body = JSON.parse(e.postData.contents);
-    // Rute utama untuk update stok adalah array of updates
-    if (Array.isArray(body)) {
-      return updateStockBatch(body);
-    }
-    // Rute lain jika ada
-    if (body.action === "order") {
-      return orderStock(body);
-    }
-    return jsonOutput({ error: "Action tidak dikenali" });
-  } catch (error) {
-    console.error("Error in doPost:", error);
-    return jsonOutput({ error: "Internal server error: " + error.message });
+  if (api === "orders") return getOrders();
+  if (api === "orderItemCount") return getOrderItemCount();
+  if (api === "stock") return getStock();
+  if (api === "config") return getConfig();
+  
+  if (api === "updateStatus") {
+    return updateOrderStatus(e.parameter.no_order, e.parameter.status);
   }
-}
 
-function doOptions(e) {
-  var output = ContentService.createTextOutput();
-  output.setMimeType(ContentService.MimeType.TEXT);
-  output.addHeader('Access-Control-Allow-Origin', '*');
-  output.addHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  output.addHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  output.addHeader('Access-Control-Max-Age', '86400');
-  return output;
+  return jsonOutput({ error: "API tidak ditemukan" });
 }
 
 /* =========================
-   ORDERS (Form Responses 1)
+   ORDERS (Sheet 1)
 ========================= */
+
 function getOrders() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ORDERS_SHEET_NAME);
-  if (!sheet) return jsonOutput({ error: `Sheet "${ORDERS_SHEET_NAME}" tidak ditemukan` });
+  const sheet = SpreadsheetApp
+    .getActiveSpreadsheet()
+    .getSheetByName("Form Responses 1");
   const rows = sheet.getDataRange().getValues();
-  if (rows.length <= 1) return jsonOutput([]);
-  rows.shift();
+  rows.shift(); 
+
   const data = rows.map(row => ({
     waktu: row[0],
     nama: row[1],
@@ -77,20 +34,195 @@ function getOrders() {
     note: row[3],
     total: row[4],
     no_order: row[5],
-    paid: row[6] === true
+    paid: row[6] === true,
+    status: row[8] || "terbaru" 
   }));
+
   return jsonOutput(data);
 }
 
 /* =========================
-   STOCK (Stok outlet Cempaka)
+   FUNGSI UPDATE STATUS (Sinkronisasi)
 ========================= */
+function updateOrderStatus(noOrder, newStatus) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Form Responses 1");
+  const data = sheet.getDataRange().getValues();
+  
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][5]) === String(noOrder)) {
+      sheet.getRange(i + 1, 9).setValue(newStatus); 
+      return jsonOutput({ success: true, message: "Status diperbarui ke " + newStatus });
+    }
+  }
+  return jsonOutput({ success: false, message: "No Order tidak ditemukan" });
+}
+
+/* =========================
+   MAIN ENTRY POINT (doPost)
+   Update Stok & Konfirmasi Pembayaran
+========================= */
+function doPost(e) {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+  } catch (e) {
+    return ContentService.createTextOutput("Server Busy");
+  }
+
+  try {
+    if (!e || !e.postData) return ContentService.createTextOutput("No Data");
+    var content = e.postData.contents;
+    var body = JSON.parse(content);
+
+    // --- LOGIKA A: KONFIRMASI PEMBAYARAN ---
+    if (body.type === "CONFIRM_PAYMENT") {
+      console.log('Processing CONFIRM_PAYMENT for order:', body.no_order);
+      
+      var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Form Responses 1");
+      if (!sheet) {
+        console.log('Sheet "Form Responses 1" not found');
+        return jsonOutput({ success: false, error: "Sheet not found" });
+      }
+      
+      var data = sheet.getDataRange().getValues();
+      var found = false;
+
+      for (var i = 1; i < data.length; i++) {
+        // Cari No Order di Kolom F (index 5)
+        if (String(data[i][5]) === String(body.no_order)) {
+          console.log('Found order at row:', i + 1);
+          
+          // 1. Update Kolom G (index 6) jadi TRUE jika status_paid true
+          if (body.status_paid === true) {
+            sheet.getRange(i + 1, 7).setValue(true);
+            console.log('Updated payment status to true');
+          }
+          
+          // 2. Update Kolom J (index 9) dengan Link Cloudinary
+          if (body.cloudinary_url) {
+            sheet.getRange(i + 1, 10).setValue(body.cloudinary_url);
+            console.log('Updated cloudinary URL');
+          }
+          
+          found = true;
+          break;
+        }
+      }
+      
+      if (found) {
+        console.log('Payment confirmation successful');
+        return jsonOutput({ success: true, message: "Bukti pembayaran berhasil dicatat" });
+      } else {
+        console.log('Order not found in database');
+        return jsonOutput({ success: false, message: "No Order tidak ditemukan di database" });
+      }
+    }
+
+    // --- LOGIKA B: UPDATE STOK ---
+    if (body.updates) {
+      var sheetName = "Stok outlet Cempaka";
+      var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+      if (!sheet) return ContentService.createTextOutput("Sheet Not Found");
+
+      var data = sheet.getDataRange().getValues();
+      var updates = body.updates;
+
+      for (var j = 0; j < updates.length; j++) {
+        var item = updates[j];
+        var itemName = String(item.nama_item).trim().toUpperCase();
+        var qty = parseInt(item.quantity);
+        var found = false;
+        for (var i = 1; i < data.length; i++) {
+          var sheetItem = String(data[i][1]).trim().toUpperCase();
+          if (sheetItem === itemName) {
+            var currentStock = parseInt(data[i][2]);
+            var newStock = currentStock - qty;
+            sheet.getRange(i + 1, 3).setValue(newStock);
+            var status = "Tersedia";
+            if (newStock <= 0) status = "Terjual Habis";
+            else if (newStock < 5) status = "Hampir Habis";
+            sheet.getRange(i + 1, 4).setValue(status);
+            found = true;
+            break;
+          }
+        }
+      }
+      return ContentService.createTextOutput("Success");
+    }
+
+    return ContentService.createTextOutput("No matching action found");
+  } catch (err) {
+    return ContentService.createTextOutput("Error: " + err.toString());
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/* =========================
+   FUNGSI-FUNGSI LAIN
+========================= */
+
+function getOrderItemCount() {
+  const sheet = SpreadsheetApp
+    .getActiveSpreadsheet()
+    .getSheetByName("Form Responses 1");
+
+  const rows = sheet.getDataRange().getValues();
+  rows.shift();
+
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = today.getMonth();
+  const d = today.getDate();
+
+  let totalItemCount = 0;
+
+  const todayOrders = rows.filter(row => {
+    const noOrder = row[5];
+    if (noOrder === null || noOrder === undefined || String(noOrder).trim() === '') return false;
+    const waktu = row[0];
+    if (!waktu) return false;
+    const t = new Date(waktu);
+    if (Number.isNaN(t.getTime())) return false;
+    return (t.getFullYear() === y && t.getMonth() === m && t.getDate() === d);
+  });
+
+  todayOrders.forEach(row => {
+    const pesanan = row[2];
+    if (pesanan && typeof pesanan === 'string') {
+      const lines = pesanan.split('\n');
+      lines.forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        const parts = trimmed.split(/\s+/);
+        if (parts.length >= 2) {
+          const prefix = parts[0];
+          if (prefix === 'PKT' || prefix === 'NP') {
+            if (parts.length >= 3) {
+              totalItemCount += (parseInt(parts[2], 10) || 1);
+            } else {
+              totalItemCount += 1;
+            }
+          }
+        }
+      });
+    }
+  });
+
+  return jsonOutput({
+    itemCount: totalItemCount,
+    orderCount: todayOrders.length,
+    date: today.toISOString().split('T')[0]
+  });
+}
+
 function getStock() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(STOCK_SHEET_NAME);
-  if (!sheet) return jsonOutput({ error: `Sheet "${STOCK_SHEET_NAME}" tidak ditemukan` });
-  const lastRow = sheet.getLastRow();
-  if (lastRow <= 1) return jsonOutput([]);
-  const rows = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
+  const sheet = SpreadsheetApp
+    .getActiveSpreadsheet()
+    .getSheetByName("Stok outlet Cempaka");
+
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 5).getValues();
+
   const data = rows
     .filter(r => r[1])
     .map(row => ({
@@ -100,121 +232,28 @@ function getStock() {
       status: row[3],
       catatan: row[4]
     }));
+
   return jsonOutput(data);
 }
 
-/* =========================
-   CONFIG (dari sheet yang sama)
-========================= */
 function getConfig() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(STOCK_SHEET_NAME);
-  if (!sheet) return jsonOutput({ error: `Sheet "${STOCK_SHEET_NAME}" tidak ditemukan` });
-  try {
-    const configRange = sheet.getRange("F2:H2");
-    const [jamBuka, jamTutup, maxPesanan] = configRange.getValues()[0];
-    return jsonOutput({
-      jam_buka: jamBuka ? String(jamBuka).trim() : null,
-      jam_tutup: jamTutup ? String(jamTutup).trim() : null,
-      max_pesanan: maxPesanan || 0,
-      status_buka: false
-    });
-  } catch (error) {
-    console.error("Error getting config:", error);
-    return jsonOutput({ jam_buka: null, jam_tutup: null, max_pesanan: 0, status_buka: false });
-  }
+  const sheet = SpreadsheetApp
+    .getActiveSpreadsheet()
+    .getSheetByName("Stok outlet Cempaka");
+
+  const [jamBuka, jamTutup, maxPesanan] =
+    sheet.getRange("F2:H2").getValues()[0];
+
+  return jsonOutput({
+    jam_buka: jamBuka ? String(jamBuka).trim() : null,
+    jam_tutup: jamTutup ? String(jamTutup).trim() : null,
+    max_pesanan: maxPesanan || 0,
+    status_buka: false 
+  });
 }
 
-/* =========================
-   UPDATE STOCK FUNCTIONS
-========================= */
-function updateStockBatch(stockUpdates) {
-  const lock = LockService.getScriptLock();
-  try {
-    lock.waitLock(10000);
-  } catch (e) {
-    return jsonOutput({ success: false, message: "Sistem sedang sibuk, coba lagi dalam beberapa saat" });
-  }
-
-  try {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(STOCK_SHEET_NAME);
-    if (!sheet) return jsonOutput({ success: false, message: `Sheet "${STOCK_SHEET_NAME}" tidak ditemukan` });
-
-    const lastRow = sheet.getLastRow();
-    if (lastRow <= 1) return jsonOutput({ success: false, message: "Tidak ada data stock" });
-
-    const rows = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
-    const results = [];
-    let allSucceeded = true;
-
-    for (const update of stockUpdates) {
-      let found = false;
-      for (let i = 0; i < rows.length; i++) {
-        const idItem = rows[i][0];
-        const namaItem = rows[i][1];
-        if ((update.id_item && update.id_item === idItem) || (update.nama_item && update.nama_item === namaItem)) {
-          found = true;
-          let currentStok = Number(rows[i][2]);
-          
-          if (update.quantity !== undefined) {
-            if (currentStok < update.quantity) {
-              allSucceeded = false;
-              results.push({ success: false, nama_item: namaItem, message: `Stok ${namaItem} tidak mencukupi (tersedia: ${currentStok}, diminta: ${update.quantity})` });
-            } else {
-              results.push({ success: true, nama_item: namaItem });
-            }
-          }
-          break;
-        }
-      }
-      if (!found) {
-        allSucceeded = false;
-        results.push({ success: false, nama_item: update.nama_item, message: "Item tidak ditemukan" });
-      }
-    }
-
-    if (!allSucceeded) {
-      // Jika ada satu saja yang gagal, jangan update apapun dan kembalikan pesan error
-      lock.releaseLock();
-      return jsonOutput({ success: false, results: results });
-    }
-
-    // Jika semua verifikasi berhasil, baru lakukan update
-    for (const update of stockUpdates) {
-        for (let i = 0; i < rows.length; i++) {
-            const namaItem = rows[i][1];
-            if (update.nama_item === namaItem) {
-                let currentStok = Number(rows[i][2]);
-                let newStok = currentStok - update.quantity;
-                let status = "Tersedia";
-                if (newStok <= 0) status = "Terjual Habis";
-                else if (newStok < 5) status = "Hampir Habis";
-                
-                sheet.getRange(i + 2, 3).setValue(newStok);
-                sheet.getRange(i + 2, 4).setValue(status);
-                break;
-            }
-        }
-    }
-    
-    lock.releaseLock();
-    return jsonOutput({ success: true, message: "Stok berhasil diperbarui" });
-
-  } catch (error) {
-    lock.releaseLock();
-    console.error("Error in updateStockBatch:", error);
-    return jsonOutput({ success: false, message: "Terjadi kesalahan sistem: " + error.message });
-  }
-}
-
-/* =========================
-   HELPER & UTILITY
-========================= */
 function jsonOutput(data) {
-  var json = JSON.stringify(data);
-  var output = ContentService.createTextOutput(json);
-  output.setMimeType(ContentService.MimeType.JSON);
-  output.addHeader('Access-Control-Allow-Origin', '*');
-  output.addHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  output.addHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  return output;
+  return ContentService
+    .createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
 }

@@ -104,7 +104,21 @@ Aplikasi tidak menggunakan database tradisional. Sebagai gantinya, setiap pesana
 #### Memperbarui URL API
 Jika Anda membuat Google Sheet baru atau men-deploy ulang Apps Script, Anda akan mendapatkan URL Web App yang baru. URL ini harus diperbarui di dalam aplikasi.
 1.  Buka file `app/lib/api-config.ts`.
-2.  Cari variabel `API_URL`.
+2.  Cari variabel `BASE_URL` di dalam `API_CONFIG`.
 3.  Ganti nilai string yang ada dengan URL Web App Google Apps Script Anda yang baru.
+
+## API Endpoints
+
+### GET Endpoints
+- `?api=orders` - Mengambil semua data pesanan
+- `?api=orderItemCount` - Mengambil statistik pesanan harian (jumlah item dan pesanan)
+- `?api=stock` - Mengambil data stok barang
+- `?api=config` - Mengambil konfigurasi toko (jam buka/tutup, max pesanan)
+- `?api=updateStatus&no_order=XXX&status=YYY` - Update status pesanan
+- `?api=itemsWithLinks` - Mengambil data item dengan link gambar
+
+### POST Endpoints
+- **CONFIRM_PAYMENT** - Konfirmasi pembayaran dengan upload bukti
+- **Stock Updates** - Update stok barang secara batch
 
 **Penting:** Pastikan saat men-deploy skrip di Google Apps Script, Anda memberikan akses "Execute as: Me" dan "Who has access: Anyone".
