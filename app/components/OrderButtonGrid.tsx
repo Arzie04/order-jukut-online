@@ -52,20 +52,34 @@ interface OrderButtonGridProps {
 
 // Mapping from item code to image source
 const imageMap: { [key:string]: string } = {
-    'PKT PA': '/Foto Produk/Paket Paha Atas.png',
-    'PKT PB': '/Foto Produk/Paket Paha Bawah.png',
-    'PKT DD': '/Foto Produk/Paket Dada.png',
-    'PKT SY': '/Foto Produk/Paket Sayap.png',
-    'PKT ATI': '/Foto Produk/Paket Ati Ampela.png',
-    'PKT KL': '/Foto Produk/Paket Kulit.png',
-    'PKT TT': '/Foto Produk/Paket Tahu Tempe.png',
-    'PKT PA NDJ': '/Foto Produk/Paket Paha Atas.png',
-    'PKT PB NDJ': '/Foto Produk/Paket Paha Bawah.png',
-    'PKT DD NDJ': '/Foto Produk/Paket Dada.png',
-    'PKT SY NDJ': '/Foto Produk/Paket Sayap.png',
-    'PKT ATI NDJ': '/Foto Produk/Paket Ati Ampela.png',
-    'PKT KL NDJ': '/Foto Produk/Paket Kulit.png',
-    'PKT TT NDJ': '/Foto Produk/Paket Tahu Tempe.png',
+    // Paket regular
+    'PKT PA': '/Foto Produk/Paket Paha Atas.webp',
+    'PKT PB': '/Foto Produk/Paket Paha Bawah.webp',
+    'PKT DD': '/Foto Produk/Paket Dada.webp',
+    'PKT SY': '/Foto Produk/Paket Sayap.webp',
+    'PKT TD': '/Foto Produk/Paket Telur.webp',
+    'PKT ATI': '/Foto Produk/Paket Ati Ampela.webp',
+    'PKT KL': '/Foto Produk/Paket Kulit.webp',
+    'PKT TT': '/Foto Produk/Paket Tahu Tempe.webp',
+    
+    // Paket NDJ (same images as Paket)
+    'PKT PA NDJ': '/Foto Produk/Paket Paha Atas.webp',
+    'PKT PB NDJ': '/Foto Produk/Paket Paha Bawah.webp',
+    'PKT DD NDJ': '/Foto Produk/Paket Dada.webp',
+    'PKT SY NDJ': '/Foto Produk/Paket Sayap.webp',
+    'PKT TD NDJ': '/Foto Produk/Paket Telur.webp',
+    'PKT ATI NDJ': '/Foto Produk/Paket Ati Ampela.webp',
+    'PKT KL NDJ': '/Foto Produk/Paket Kulit.webp',
+    'PKT TT NDJ': '/Foto Produk/Paket Tahu Tempe.webp',
+    
+    // Non-Paket
+    'NP PA': '/Foto Produk/Non Paket Paha Atas.webp',
+    'NP PB': '/Foto Produk/Non Paket Paha Bawah.webp',
+    'NP DD': '/Foto Produk/Non Paket Dada.webp',
+    'NP SY': '/Foto Produk/Non Paket Sayap.webp',
+    'NP TD': '/Foto Produk/Non Paket Telur.webp',
+    'NP ATI': '/Foto Produk/Non Paket Ati Ampela.webp',
+    'NP KL': '/Foto Produk/Non Paket Kulit.webp',
 };
 
 export default function OrderButtonGrid({ onAddItem, isNdjOutOfStock }: OrderButtonGridProps) {
