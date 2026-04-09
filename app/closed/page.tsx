@@ -83,41 +83,41 @@ const ClosedPage = () => {
 
       {/* Main Content */}
       <div
-        className={`flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-gray-800 to-gray-600 text-white transition-opacity duration-1000 ${isInteracted ? 'opacity-100' : 'opacity-0'}`}
+        className={`flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-700 text-white transition-opacity duration-1000 ${isInteracted ? 'opacity-100' : 'opacity-0'}`}
       >
-        <div className="p-6 sm:p-10 bg-white bg-opacity-10 backdrop-blur-lg rounded-2xl shadow-xl text-center flex flex-col items-center max-w-md mx-4">
+        <div className="p-6 sm:p-10 bg-black bg-opacity-20 backdrop-blur-lg rounded-2xl shadow-2xl text-center flex flex-col items-center max-w-md mx-4 border border-gray-600">
           <Image
             src="/Logo loading.png"
             alt="Logo"
-            width={100}
-            height={100}
-            className="mb-4"
+            width={120}
+            height={120}
+            className="mb-6 drop-shadow-lg"
           />
 
-          <h1 className="text-3xl md:text-4xl font-bold mb-4">
-            Website Sedang Maintenance
+          <h1 className="text-3xl md:text-4xl font-bold mb-6 text-yellow-400">
+            🚧 Website Sedang Maintenance 🚧
           </h1>
 
-          <p className="text-lg mb-4">
-            Mohon maaf, saat ini sistem kami sedang dalam proses perbaikan dan pengembangan.
+          <p className="text-lg mb-6 leading-relaxed">
+            Mohon maaf, saat ini sistem kami sedang dalam proses perbaikan dan pengembangan untuk memberikan pengalaman yang lebih baik.
           </p>
 
-          <p className="text-lg mb-4">
+          <p className="text-lg mb-6 font-semibold">
             Untuk sementara, kami hanya menerima pesanan melalui:
           </p>
 
-          <div className="bg-white text-black px-4 py-3 rounded-xl mb-4 w-full">
-            <p className="font-semibold">• Outlet langsung</p>
-            <p className="font-semibold">• ShopeeFood</p>
+          <div className="bg-gradient-to-r from-yellow-500 to-orange-500 text-black px-6 py-4 rounded-xl mb-6 w-full shadow-lg">
+            <p className="font-bold text-lg">🏪 Outlet langsung</p>
+            <p className="font-bold text-lg">🍽️ ShopeeFood</p>
           </div>
 
-          <p className="text-sm opacity-80">
-            Terima kasih atas pengertiannya 🙏
+          <p className="text-sm opacity-90 mb-4">
+            Terima kasih atas pengertian dan kesabarannya 🙏
           </p>
 
-          <p className="text-sm mt-4">
+          <p className="text-sm mt-4 text-yellow-300">
             Salam hangat,<br />
-            <strong>Ayam Jukut Cabe Ijo</strong>
+            <strong className="text-yellow-400">Ayam Jukut Cabe Ijo</strong>
           </p>
         </div>
       </div>
