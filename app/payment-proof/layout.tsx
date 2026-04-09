@@ -13,29 +13,37 @@ export async function generateMetadata({
   const orderNumber = 
     typeof searchParams?.order === 'string' ? searchParams.order : 'Ordermu';
 
+  // Gunakan URL Cloudinary langsung sebagai thumbnail (tidak perlu query params jika sudah optimal)
+  const thumbnailUrl = cloudinaryUrl || '';
+
   return {
     title: `Bukti Pembayaran - ${orderNumber}`,
-    description: 'Bukti pembayaran pesanan Anda telah dikonfirmasi.',
+    description: `Bukti pembayaran ORDER ${orderNumber}. Pesanan sedang diproses.`,
     openGraph: {
-      title: `Bukti Pembayaran - ${orderNumber}`,
-      description: 'Bukti pembayaran pesanan Anda telah dikonfirmasi. Pesanan sedang diproses.',
-      images: cloudinaryUrl 
+      title: `Bukti Pembayaran Jukut Online - ${orderNumber}`,
+      description: `ORDER ${orderNumber} - Bukti pembayaran telah diterima dan sedang diverifikasi.`,
+      url: `https://order-jukut-online-git-main-arzies-projects.vercel.app/payment-proof?url=${encodeURIComponent(cloudinaryUrl)}&order=${orderNumber}`,
+      siteName: 'Jukut Online',
+      type: 'website',
+      images: thumbnailUrl
         ? [
             {
-              url: cloudinaryUrl,
-              width: 1200,
-              height: 630,
+              url: thumbnailUrl,
+              width: 1080,
+              height: 1080,
               alt: `Bukti Pembayaran Order ${orderNumber}`,
+              type: 'image/jpeg',
+              secureUrl: thumbnailUrl,
             },
           ]
         : undefined,
-      type: 'website',
+      locale: 'id_ID',
     },
     twitter: {
       card: 'summary_large_image',
       title: `Bukti Pembayaran - ${orderNumber}`,
-      description: 'Bukti pembayaran pesanan Anda telah dikonfirmasi.',
-      images: cloudinaryUrl ? [cloudinaryUrl] : undefined,
+      description: `ORDER ${orderNumber} - Bukti pembayaran Jukut Online`,
+      images: thumbnailUrl ? [thumbnailUrl] : undefined,
     },
   };
 }
