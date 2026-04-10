@@ -195,7 +195,11 @@ export default function Home() {
 
   const handleOpenConfirm = (): boolean => {
     if (!name.trim() || orderItems.length === 0) {
-      setAlert({ type: 'danger', message: 'Nama dan pesanan wajib diisi.' }); return false;
+      setAlert({ 
+        type: 'danger', 
+        message: 'Nama dan pesanan wajib diisi.\n\nJika ada masalah, hubungi admin!' 
+      }); 
+      return false;
     }
 
     // Validasi Stok dan Hapus Item yang Habis
@@ -242,7 +246,11 @@ export default function Home() {
     }
 
     if (!calculateTotal()) {
-      setAlert({ type: 'danger', message: 'Terjadi kesalahan saat menghitung total.' }); return false;
+      setAlert({ 
+        type: 'danger', 
+        message: 'Terjadi kesalahan saat menghitung total. Silakan refresh halaman dan coba lagi.' 
+      }); 
+      return false;
     }
     return true;
   };
@@ -251,28 +259,37 @@ export default function Home() {
     setIsSubmitting(true);
     setAlert(null);
 
-    const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSceaYNjewOa6lWgeab7Zo-pkJ7WUBnox9C8DQ3HX9lh8E5IeQ/formResponse';
     const orderString = orderItems.map(item => `${item.code} ${item.qty}`).join('\n');
 
-    const formData = new FormData();
-    formData.append('entry.1756210992', name);
-    formData.append('entry.794602475', orderString);
-    formData.append('entry.1229878423', note);
-    formData.append('entry.39066530', total.toString());
-
     try {
-      // Step 1: Calculate Order ID client-side (Prediction)
-      const orderNumber = await getNextOrderId();
-      setCurrentOrderNumber(orderNumber);
-
-      // Step 2: Fire-and-forget submission to Google Form
-      await fetch(GOOGLE_FORM_URL, {
+      // Step 1: Insert new order via API (REPLACES Google Form)
+      console.log('[ORDER] Inserting new order via API...');
+      
+      const insertResponse = await fetch('/api/proxy/insert-order', {
         method: 'POST',
-        mode: 'no-cors',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          nama: name,
+          pesanan: orderString,
+          note: note,
+          total: total
+        })
       });
 
-      // Step 3: Update Stock via API (Background Process)
+      const insertData = await insertResponse.json();
+      console.log('[ORDER] Insert response:', insertData);
+
+      if (!insertData.success) {
+        throw new Error(insertData.error || 'Gagal membuat pesanan');
+      }
+
+      const orderNumber = insertData.no_order;
+      setCurrentOrderNumber(orderNumber);
+      console.log('[ORDER] Order created successfully:', orderNumber);
+
+      // Step 2: Update Stock via API (Background Process)
       const quantities = getOrderQuantities();
       const stockUpdates = Object.entries(quantities).map(([nama_item, qty]) => ({
         nama_item,
@@ -292,7 +309,7 @@ export default function Home() {
         }).catch(e => console.error("Gagal update stok:", e));
       }
 
-      // Step 4: Construct the final WhatsApp message
+      // Step 3: Construct the final WhatsApp message
       const now = new Date();
       const timeString = `${('0' + now.getHours()).slice(-2)}:${('0' + now.getMinutes()).slice(-2)}:${('0' + now.getSeconds()).slice(-2)}`;
 
@@ -322,7 +339,7 @@ export default function Home() {
 
       setAlert({
         type: 'success',
-        message: `Pesanan Anda (${orderNumber}) berhasil dikirim! Silakan simpan bukti transaksi QRIS dan kirimkan via WhatsApp Bersama Pesan ini.`
+        message: `Pesanan Anda (${orderNumber}) berhasil dibuat! Silakan simpan bukti transaksi QRIS dan kirimkan via WhatsApp Bersama Pesan ini.`
       });
 
       // Reset form
@@ -335,10 +352,10 @@ export default function Home() {
       setShowCalcResult(false);
 
     } catch (error: any) {
-      console.error('Google Form Submission Error:', error);
+      console.error('[ORDER] Submission Error:', error);
       setAlert({
         type: 'danger',
-        message: `Terjadi kesalahan saat mengirim pesanan: ${error.message}`
+        message: `❌ Terjadi kesalahan saat membuat pesanan: ${error.message}\n\nSilakan coba lagi atau hubungi admin.`
       });
     } finally {
       setIsSubmitting(false);

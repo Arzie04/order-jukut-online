@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Apps Script - API URLs</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        header h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .endpoint-list {
+            display: grid;
+            gap: 15px;
+        }
+
+        .endpoint-item {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .endpoint-item:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .method-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 700;
+            min-width: 40px;
+            text-align: center;
+        }
+
+        .method-get {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .method-post {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+
+        .endpoint-details {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .endpoint-name {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .endpoint-url {
+            background: #f5f5f5;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #666;
+            word-break: break-all;
+            overflow-x: auto;
+        }
+
+        .endpoint-description {
+            font-size: 12px;
+            color: #999;
+            font-style: italic;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+        }
+
+        button {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn-open {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-open:hover {
+            background: #5568d3;
+        }
+
+        .btn-copy {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-copy:hover {
+            background: #d0d0d0;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 12px 16px;
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideIn 0.3s ease-out;
+            z-index: 1000;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .section-title {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #333;
+            border-left: 4px solid #667eea;
+        }
+
+        .filter-box {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .filter-box input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .filter-box button {
+            padding: 8px 16px;
+            background: #667eea;
+            color: white;
+        }
+
+        .filter-box button:hover {
+            background: #5568d3;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .count-badge {
+            background: #667eea;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔗 Google Apps Script - API URLs</h1>
+            <p>List lengkap semua endpoint dengan direct URL. Copy & paste ke browser untuk test.</p>
+        </header>
+
+        <div class="filter-box">
+            <input type="text" id="searchInput" placeholder="Cari endpoint (e.g., orders, stock, delete)...">
+            <button onclick="clearSearch()">Clear</button>
+        </div>
+
+        <!-- GET Endpoints -->
+        <div class="section-title">
+            📥 GET ENDPOINTS <span class="count-badge" id="getCount">9</span>
+        </div>
+        <div class="endpoint-list" id="getEndpoints"></div>
+
+        <!-- POST Endpoints -->
+        <div class="section-title">
+            📤 POST ENDPOINTS <span class="count-badge" id="postCount">2</span>
+        </div>
+        <div class="endpoint-list" id="postEndpoints"></div>
+    </div>
+
+    <script>
+        const SCRIPT_ID = 'AKfycbxe5xK7fOwhC2Z4Z3khcjZ5n0N3e_-qsXwigNPeHXyDtFu2aXZqon3aIdI58Aqkciej';
+        const BASE_URL = `https://script.google.com/macros/s/${SCRIPT_ID}/exec`;
+
+        const endpoints = {
+            GET: [
+                {
+                    name: 'SC-A1: Get Orders',
+                    description: 'Ambil 100 pesanan terbaru',
+                    url: `${BASE_URL}?api=orders`,
+                    params: 'Tidak ada'
+                },
+                {
+                    name: 'SC-A2: Get Order Item Count',
+                    description: 'Hitung total item & pesanan hari ini',
+                    url: `${BASE_URL}?api=orderItemCount`,
+                    params: 'Tidak ada'
+                },
+                {
+                    name: 'SC-A3: Get Stock',
+                    description: 'Lihat status stok semua menu',
+                    url: `${BASE_URL}?api=stock`,
+                    params: 'Tidak ada'
+                },
+                {
+                    name: 'SC-A4: Get Config',
+                    description: 'Ambil jam buka/tutup dan max pesanan',
+                    url: `${BASE_URL}?api=config`,
+                    params: 'Tidak ada'
+                },
+                {
+                    name: 'SC-A5: Get Next Order ID',
+                    description: 'Generate nomor pesanan berikutnya',
+                    url: `${BASE_URL}?api=getNextOrderId`,
+                    params: 'Tidak ada'
+                },
+                {
+                    name: 'SC-A6: Delete Older Than (7 days)',
+                    description: 'Hapus data lebih dari 7 hari',
+                    url: `${BASE_URL}?api=deleteOlderThan&days=7`,
+                    params: 'days=7 (bisa ganti dengan 14, 21, dst)'
+                },
+                {
+                    name: 'SC-A7: Delete By Status',
+                    description: 'Hapus pesanan dengan status dibatalkan',
+                    url: `${BASE_URL}?api=deleteByStatus&status=dibatalkan`,
+                    params: 'status=dibatalkan (bisa ganti: siap, selesai, dsb)'
+                },
+                {
+                    name: 'SC-A8: Update Order Status',
+                    description: 'Ubah status pesanan',
+                    url: `${BASE_URL}?api=updateStatus&no_order=ORD-0001&status=siap`,
+                    params: 'no_order=..., status=...'
+                },
+                {
+                    name: 'SC-A9: Delete Order (NEW)',
+                    description: 'Hapus pesanan spesifik by nomor order',
+                    url: `${BASE_URL}?api=deleteOrder&no_order=ORD-0001`,
+                    params: 'no_order=ORD-0001 (nomor pesanan yang mau dihapus)'
+                }
+            ],
+            POST: [
+                {
+                    name: 'SC-B1: Confirm Payment',
+                    description: 'Catat bukti pembayaran (gunakan curl/Postman)',
+                    url: `${BASE_URL}`,
+                    params: 'Body: type, no_order, status_paid, cloudinary_url',
+                    curl: `curl -X POST "${BASE_URL}" -H "Content-Type: application/json" -d '{"type":"CONFIRM_PAYMENT","no_order":"ORD-0001","status_paid":true,"cloudinary_url":"https://example.com/image.jpg"}'`
+                },
+                {
+                    name: 'SC-B2: Update Stock',
+                    description: 'Kurangi stok setelah order (auto-called)',
+                    url: `${BASE_URL}`,
+                    params: 'Body: updates array dengan nama_item & quantity',
+                    curl: `curl -X POST "${BASE_URL}" -H "Content-Type: application/json" -d '{"updates":[{"nama_item":"PAHA ATAS","quantity":2}]}'`
+                }
+            ]
+        };
+
+        function renderEndpoints() {
+            const getContainer = document.getElementById('getEndpoints');
+            const postContainer = document.getElementById('postEndpoints');
+
+            getContainer.innerHTML = endpoints.GET.map((ep, idx) => createEndpointHTML(ep, 'GET', idx)).join('');
+            postContainer.innerHTML = endpoints.POST.map((ep, idx) => createEndpointHTML(ep, 'POST', idx)).join('');
+        }
+
+        function createEndpointHTML(ep, method, idx) {
+            const methodClass = method === 'GET' ? 'method-get' : 'method-post';
+            const isPost = method === 'POST';
+
+            let html = `
+                <div class="endpoint-item" data-method="${method}" data-index="${idx}" data-name="${ep.name.toLowerCase()}">
+                    <div class="method-badge ${methodClass}">${method}</div>
+                    <div class="endpoint-details">
+                        <div class="endpoint-name">${ep.name}</div>
+                        <div class="endpoint-description">${ep.description}</div>
+            `;
+
+            if (isPost && ep.curl) {
+                html += `<div class="endpoint-url" style="background: #fff3cd;">${ep.curl}</div>`;
+            } else {
+                html += `<div class="endpoint-url"><a href="${ep.url}" target="_blank" style="color: #667eea; text-decoration: none;">${ep.url}</a></div>`;
+            }
+
+            html += `<div class="endpoint-description" style="margin-top: 5px;">📌 ${ep.params}</div>
+                    </div>
+                    <div class="action-buttons">
+                        ${!isPost ? `<button class="btn-open" onclick="openUrl('${ep.url}')">🔗 Open</button>` : ''}
+                        <button class="btn-copy" onclick="copyUrl('${isPost ? ep.curl : ep.url}')">📋 Copy</button>
+                    </div>
+                </div>
+            `;
+
+            return html;
+        }
+
+        function openUrl(url) {
+            window.open(url, '_blank');
+        }
+
+        function copyUrl(url) {
+            navigator.clipboard.writeText(url).then(() => {
+                showToast('✅ URL copied to clipboard!');
+            }).catch(() => {
+                showToast('❌ Copy failed');
+            });
+        }
+
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.remove();
+            }, 2000);
+        }
+
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            filterEndpoints('');
+        }
+
+        function filterEndpoints(query) {
+            const endpoints_all = document.querySelectorAll('.endpoint-item');
+            let visibleGet = 0, visiblePost = 0;
+
+            endpoints_all.forEach(ep => {
+                const name = ep.dataset.name;
+                const method = ep.dataset.method;
+
+                if (name.includes(query.toLowerCase())) {
+                    ep.classList.remove('hidden');
+                    if (method === 'GET') visibleGet++;
+                    if (method === 'POST') visiblePost++;
+                } else {
+                    ep.classList.add('hidden');
+                }
+            });
+
+            document.getElementById('getCount').textContent = visibleGet;
+            document.getElementById('postCount').textContent = visiblePost;
+        }
+
+        // Initialize
+        renderEndpoints();
+
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            filterEndpoints(e.target.value);
+        });
+    </script>
+</body>
+</html>

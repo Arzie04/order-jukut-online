@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Apps Script API Tester</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        header h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+        
+        header p {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .script-id {
+            background: #f5f5f5;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin-top: 10px;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        
+        .endpoints-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .endpoint-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .endpoint-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .endpoint-card h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        .endpoint-code {
+            background: #f5f5f5;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 10px;
+            word-break: break-all;
+        }
+        
+        .endpoint-description {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        
+        .input-group input {
+            flex: 1;
+            min-width: 120px;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: monospace;
+        }
+        
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            flex: 1;
+            min-width: 100px;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+        
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+        
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+        
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+        
+        .btn-danger {
+            background: #ff6b6b;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #ee5a52;
+        }
+        
+        .response-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .response-section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        .response-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .response-tab {
+            padding: 10px 16px;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: #666;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .response-tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+        
+        .response-tab:hover {
+            color: #667eea;
+        }
+        
+        .response-content {
+            display: none;
+        }
+        
+        .response-content.active {
+            display: block;
+        }
+        
+        .response-box {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .response-box.error {
+            background: #5a1a1a;
+            color: #ff6b6b;
+        }
+        
+        .response-box.success {
+            background: #1a5a2a;
+            color: #51cf66;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        
+        .status-indicator.loading {
+            background: #ffc107;
+            animation: pulse 1s infinite;
+        }
+        
+        .status-indicator.success {
+            background: #51cf66;
+        }
+        
+        .status-indicator.error {
+            background: #ff6b6b;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .endpoint-method {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 700;
+            margin-right: 8px;
+        }
+        
+        .method-get {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .method-post {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+        
+        .copy-btn {
+            background: #f5f5f5;
+            color: #666;
+            padding: 4px 8px;
+            margin-left: auto;
+            font-size: 12px;
+            min-width: auto;
+            flex: 0 0 auto;
+        }
+        
+        .copy-btn:hover {
+            background: #e0e0e0;
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 12px 16px;
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .post-section {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+        
+        .post-section label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 5px;
+            margin-top: 10px;
+        }
+        
+        .post-section textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            resize: vertical;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔧 Google Apps Script API Tester</h1>
+            <p>Testing semua endpoint dari Jukut Order System</p>
+            <div class="script-id">
+                📌 Script ID: AKfycbxe5xK7fOwhC2Z4Z3khcjZ5n0N3e_-qsXwigNPeHXyDtFu2aXZqon3aIdI58Aqkciej
+            </div>
+        </header>
+
+        <div class="endpoints-grid">
+            <!-- SC-A1: Get Orders -->
+            <div class="endpoint-card">
+                <h3><span class="endpoint-method method-get">GET</span>Orders</h3>
+                <div class="endpoint-code">/exec?api=orders</div>
+                <div class="endpoint-description">Ambil 100 pesanan terbaru dari sheet</div>
+                <div class="button-group">
+                    <button class="btn-primary" onclick="testGetOrders()">Test API</button>
+                </div>
+            </div>
+
+            <!-- SC-A2: Get Item Count -->
+            <div class="endpoint-card">
+                <h3><span class="endpoint-method method-get">GET</span>Item Count</h3>
+                <div class="endpoint-code">/exec?api=orderItemCount</div>
+                <div class="endpoint-description">Hitung total item dan pesanan hari ini</div>
+                <div class="button-group">
+                    <button class="btn-primary" onclick="testOrderItemCount()">Test API</button>
+                </div>
+            </div>
+
+            <!-- SC-A3: Get Stock -->
+            <div class="endpoint-card">
+                <h3><span class="endpoint-method method-get">GET</span>Stock</h3>
+                <div class="endpoint-code">/exec?api=stock</div>
+                <div class="endpoint-description">Lihat status stok semua menu</div>
+                <div class="button-group">
+                    <button class="btn-primary" onclick="testGetStock()">Test API</button>
+                </div>
+            </div>
+
+            <!-- SC-A4: Get Config -->
+            <div class="endpoint-card">
+                <h3><span class="endpoint-method method-get">GET</span>Config</h3>
+                <div class="endpoint-code">/exec?api=config</div>
+                <div class="endpoint-description">Ambil jam buka/tutup dan max pesanan</div>
+                <div class="button-group">
+                    <button class="btn-primary" onclick="testGetConfig()">Test API</button>
+                </div>
+            </div>
+
+            <!-- SC-A5: Get Next Order ID -->
+            <div class="endpoint-card">
+                <h3><span class="endpoint-method method-get">GET</span>Next Order ID</h3>
+                <div class="endpoint-code">/exec?api=getNextOrderId</div>
+                <div class="endpoint-description">Generate nomor pesanan berikutnya</div>
+                <div class="button-group">
+                    <button class="btn-primary" onclick="testGetNextOrderId()">Test API</button>
+                </div>
+            </div>
+
+            <!-- SC-A6: Delete Older Than -->
+            <div class="endpoint-card">
+                <h3><span class="endpoint-method method-get">GET</span>Delete Old Data</h3>
+                <div class="endpoint-code">/exec?api=deleteOlderThan&days=X</div>
+                <div class="endpoint-description">Hapus data lebih dari X hari</div>
+                <div class="input-group">
+                    <input type="number" id="deleteOlderDays" placeholder="Hari (default: 7)" value="7">
+                </div>
+                <div class="button-group">
+                    <button class="btn-danger" onclick="testDeleteOlderThan()">Test Delete</button>
+                </div>
+            </div>
+
+            <!-- SC-A7: Delete By Status -->
+            <div class="endpoint-card">
+                <h3><span class="endpoint-method method-get">GET</span>Delete By Status</h3>
+                <div class="endpoint-code">/exec?api=deleteByStatus&status=X</div>
+                <div class="endpoint-description">Hapus pesanan dengan status tertentu</div>
+                <div class="input-group">
+                    <input type="text" id="deleteByStatusValue" placeholder="Status (dibatalkan, siap, selesai)" value="dibatalkan">
+                </div>
+                <div class="button-group">
+                    <button class="btn-danger" onclick="testDeleteByStatus()">Test Delete</button>
+                </div>
+            </div>
+
+            <!-- SC-A8: Update Status -->
+            <div class="endpoint-card">
+                <h3><span class="endpoint-method method-get">GET</span>Update Status</h3>
+                <div class="endpoint-code">/exec?api=updateStatus&no_order=X&status=Y</div>
+                <div class="endpoint-description">Ubah status pesanan</div>
+                <div class="input-group">
+                    <input type="text" id="updateStatusNoOrder" placeholder="No Order (e.g. ORD-0001)">
+                    <input type="text" id="updateStatusValue" placeholder="Status baru">
+                </div>
+                <div class="button-group">
+                    <button class="btn-primary" onclick="testUpdateStatus()">Test Update</button>
+                </div>
+            </div>
+
+            <!-- SC-B1: Confirm Payment -->
+            <div class="endpoint-card">
+                <h3><span class="endpoint-method method-post">POST</span>Confirm Payment</h3>
+                <div class="endpoint-code">/exec (type: CONFIRM_PAYMENT)</div>
+                <div class="endpoint-description">Catat bukti pembayaran dan tandai pesanan dibayar</div>
+                <div class="input-group">
+                    <input type="text" id="confirmPaymentNoOrder" placeholder="No Order">
+                    <input type="text" id="confirmPaymentUrl" placeholder="Cloudinary URL">
+                </div>
+                <div class="button-group">
+                    <button class="btn-primary" onclick="testConfirmPayment(true)">Paid ✅</button>
+                    <button class="btn-secondary" onclick="testConfirmPayment(false)">Pending ⏳</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Response Section -->
+        <div class="response-section">
+            <h2>📊 Response</h2>
+            <div class="response-tabs">
+                <button class="response-tab active" onclick="switchTab('json')">JSON</button>
+                <button class="response-tab" onclick="switchTab('logs')">Logs</button>
+                <button class="response-tab" onclick="switchTab('info')">Info</button>
+            </div>
+            
+            <div class="response-content active" id="json-tab">
+                <div class="response-box" id="responseBox"></div>
+            </div>
+            
+            <div class="response-content" id="logs-tab">
+                <div class="response-box" id="logsBox"></div>
+                <button class="btn-secondary" onclick="clearLogs()" style="margin-top: 10px;">Clear Logs</button>
+            </div>
+            
+            <div class="response-content" id="info-tab">
+                <div style="padding: 15px; background: #f5f5f5; border-radius: 4px;">
+                    <p><strong>📋 Endpoint Summary:</strong></p>
+                    <ul style="margin-top: 10px; margin-left: 20px; line-height: 1.8;">
+                        <li><strong>GET orders</strong> - Ambil 100 pesanan terbaru</li>
+                        <li><strong>GET orderItemCount</strong> - Total item & pesanan hari ini</li>
+                        <li><strong>GET stock</strong> - Status stok semua menu</li>
+                        <li><strong>GET config</strong> - Jam buka/tutup & limit pesanan</li>
+                        <li><strong>GET getNextOrderId</strong> - Generate nomor pesanan</li>
+                        <li><strong>GET deleteOlderThan</strong> - Hapus data lama (parameter: days)</li>
+                        <li><strong>GET deleteByStatus</strong> - Hapus berdasarkan status (parameter: status)</li>
+                        <li><strong>GET updateStatus</strong> - Update status pesanan (parameters: no_order, status)</li>
+                        <li><strong>POST CONFIRM_PAYMENT</strong> - Catat bukti pembayaran</li>
+                    </ul>
+                    
+                    <hr style="margin: 15px 0;">
+                    
+                    <p><strong>🔧 Network Diagnostics:</strong></p>
+                    <div style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button class="btn-primary" onclick="testDirectUrl()" style="flex: 1; min-width: 150px;">Test URL Langsung</button>
+                        <button class="btn-primary" onclick="checkConnectivity()" style="flex: 1; min-width: 150px;">Check Internet</button>
+                        <button class="btn-secondary" style="flex: 1; min-width: 150px;" onclick="copyManualCommand()">Copy Manual Command</button>
+                    </div>
+                    
+                    <div style="margin-top: 15px; padding: 10px; background: white; border-radius: 4px; font-family: monospace; font-size: 12px; border: 1px solid #ddd;">
+                        <strong>📌 Script ID:</strong> <br>
+                        ${SCRIPT_ID}
+                        <br><br>
+                        <strong>🔗 Base URL:</strong> <br>
+                        ${BASE_URL}
+                    </div>
+                    
+                    <p style="margin-top: 15px; color: #666; font-size: 13px;">
+                        💡 Buka Developer Tools (F12) → Console untuk melihat detail technical
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SCRIPT_ID = 'AKfycbxe5xK7fOwhC2Z4Z3khcjZ5n0N3e_-qsXwigNPeHXyDtFu2aXZqon3aIdI58Aqkciej';
+        const BASE_URL = `https://script.google.com/macros/s/${SCRIPT_ID}/exec`;
+        let logs = [];
+
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString('id-ID');
+            const logEntry = `[${timestamp}] ${message}`;
+            logs.push(logEntry);
+            console.log(`%c${logEntry}`, `color: ${type === 'error' ? 'red' : type === 'success' ? 'green' : 'blue'}`);
+            updateLogsDisplay();
+        }
+
+        function updateLogsDisplay() {
+            const logsBox = document.getElementById('logsBox');
+            logsBox.textContent = logs.join('\n');
+            logsBox.scrollTop = logsBox.scrollHeight;
+        }
+
+        function clearLogs() {
+            logs = [];
+            updateLogsDisplay();
+        }
+
+        async function apiCall(url, method = 'GET', body = null) {
+            const responseBox = document.getElementById('responseBox');
+            responseBox.innerHTML = '<span class="status-indicator loading"></span> Loading...';
+            
+            addLog(`🚀 ${method} ${url.replace(BASE_URL, 'BASE_URL')}`);
+
+            try {
+                const options = {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
+                };
+                
+                if (body) {
+                    options.body = JSON.stringify(body);
+                    addLog(`📦 Body: ${JSON.stringify(body)}`);
+                }
+
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000);
+                options.signal = controller.signal;
+
+                console.log('🔍 URL:', url);
+                console.log('🔍 Fetch options:', options);
+                
+                const response = await fetch(url, options);
+                clearTimeout(timeoutId);
+                
+                console.log('📡 Response:', response);
+                console.log('📡 Response status:', response.status);
+                console.log('📡 Response statusText:', response.statusText);
+                
+                addLog(`📡 Response Status: ${response.status} ${response.statusText}`, 'success');
+                
+                let data;
+                const contentType = response.headers.get('content-type');
+                console.log('📡 Content-Type:', contentType);
+                
+                try {
+                    const text = await response.text();
+                    console.log('📄 Response text (first 500 chars):', text.substring(0, 500));
+                    
+                    if (text) {
+                        try {
+                            data = JSON.parse(text);
+                            console.log('✅ Parsed as JSON');
+                        } catch (parseError) {
+                            console.warn('⚠️  Not valid JSON, showing as text');
+                            data = text;
+                        }
+                    } else {
+                        data = { message: 'Empty response' };
+                    }
+                } catch (readError) {
+                    console.error('❌ Error reading response:', readError);
+                    data = { error: readError.message };
+                }
+
+                responseBox.className = `response-box ${response.ok ? 'success' : 'error'}`;
+                
+                if (typeof data === 'string') {
+                    responseBox.textContent = data;
+                } else {
+                    responseBox.textContent = JSON.stringify(data, null, 2);
+                }
+                
+                addLog(`✅ ${method} completed`, 'success');
+                showToast(`✅ Request berhasil!`);
+                return data;
+
+            } catch (error) {
+                console.error('❌ Fetch error:', error);
+                console.error('❌ Error details:', {
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack
+                });
+                
+                addLog(`❌ Error: ${error.message}`, 'error');
+                addLog(`   Error type: ${error.name}`, 'error');
+                
+                if (error.name === 'AbortError') {
+                    addLog(`⏱️  Request timeout setelah 30 detik`, 'error');
+                } else if (error.name === 'TypeError') {
+                    addLog(`🌐 Network error - Kemungkinan:`, 'error');
+                    addLog(`   1. URL tidak valid atau tidak accessible`, 'error');
+                    addLog(`   2. Google Apps Script deployment tidak public`, 'error');
+                    addLog(`   3. Deployment ID perlu di-update`, 'error');
+                }
+                
+                responseBox.className = 'response-box error';
+                responseBox.textContent = `❌ ${error.name}: ${error.message}\n\n📋 TROUBLESHOOTING:\n\n1. Verify Google Apps Script URL:\n   ${BASE_URL}\n\n2. Check if deployment is PUBLIC:\n   - Open Google Apps Script\n   - Klik Deploy → View all deployments\n   - Pastikan type = "Web app"\n   - Execute as = Account Anda\n   - Who has access = "Anyone"\n\n3. Test langsung di browser address bar:\n   Paste link di atas dan Enter\n\n4. Kalau masih error, perlu deploy ulang:\n   - Open Apps Script\n   - Klik Deploy → New deployment\n   - Type: Web app\n   - Execute as: Akun Anda\n   - Who has access: Anyone\n   - Copy script ID baru\n   - Update di API_TESTER.html line 245\n\n⚙️ Script ID: ${SCRIPT_ID}`;
+                showToast(`❌ ${error.name}: Network error`);
+            }
+        }
+
+        function testGetOrders() {
+            apiCall(`${BASE_URL}?api=orders`);
+        }
+
+        function testOrderItemCount() {
+            apiCall(`${BASE_URL}?api=orderItemCount`);
+        }
+
+        function testGetStock() {
+            apiCall(`${BASE_URL}?api=stock`);
+        }
+
+        function testGetConfig() {
+            apiCall(`${BASE_URL}?api=config`);
+        }
+
+        function testGetNextOrderId() {
+            apiCall(`${BASE_URL}?api=getNextOrderId`);
+        }
+
+        function testDeleteOlderThan() {
+            const days = document.getElementById('deleteOlderDays').value || 7;
+            if (confirm(`⚠️  Yakin hapus data lebih dari ${days} hari? Aksi ini TIDAK bisa dibatalkan!`)) {
+                apiCall(`${BASE_URL}?api=deleteOlderThan&days=${days}`);
+            }
+        }
+
+        function testDeleteByStatus() {
+            const status = document.getElementById('deleteByStatusValue').value || 'dibatalkan';
+            if (confirm(`⚠️  Yakin hapus semua pesanan dengan status "${status}"? Aksi ini TIDAK bisa dibatalkan!`)) {
+                apiCall(`${BASE_URL}?api=deleteByStatus&status=${status}`);
+            }
+        }
+
+        function testUpdateStatus() {
+            const noOrder = document.getElementById('updateStatusNoOrder').value;
+            const status = document.getElementById('updateStatusValue').value;
+            
+            if (!noOrder || !status) {
+                showToast('❌ No Order dan Status harus diisi!');
+                return;
+            }
+            
+            apiCall(`${BASE_URL}?api=updateStatus&no_order=${noOrder}&status=${status}`);
+        }
+
+        function testConfirmPayment(paid) {
+            const noOrder = document.getElementById('confirmPaymentNoOrder').value;
+            const url = document.getElementById('confirmPaymentUrl').value;
+            
+            if (!noOrder || !url) {
+                showToast('❌ No Order dan Cloudinary URL harus diisi!');
+                return;
+            }
+            
+            const body = {
+                type: 'CONFIRM_PAYMENT',
+                no_order: noOrder,
+                status_paid: paid,
+                cloudinary_url: url
+            };
+            
+            apiCall(BASE_URL, 'POST', body);
+        }
+
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.response-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            document.querySelectorAll('.response-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') clearLogs();
+        });
+
+        // Network Diagnostic Functions
+        async function testDirectUrl() {
+            const responseBox = document.getElementById('responseBox');
+            responseBox.className = 'response-box';
+            responseBox.textContent = '⏳ Testing direct URL access...\n\nKalau ini berhasil, berarti URL accessible.\nTapi jangan tutup ini, cek hasilnya di bawah.';
+            
+            addLog('🧪 Testing direct URL access...', 'success');
+            addLog(`   URL: ${BASE_URL}?api=orders`, 'success');
+            
+            try {
+                const response = await fetch(`${BASE_URL}?api=orders`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                console.log('Response:', response);
+                console.log('Status:', response.status);
+                console.log('StatusText:', response.statusText);
+                
+                const text = await response.text();
+                console.log('Response text:', text);
+                
+                if (response.ok) {
+                    responseBox.className = 'response-box success';
+                    responseBox.textContent = `✅ SUCCESS! URL bisa diakses!\n\nResponse (${response.status}):\n\n${text}`;
+                    addLog('✅ URL accessible!', 'success');
+                } else {
+                    responseBox.className = 'response-box error';
+                    responseBox.textContent = `⚠️  Response ${response.status}\n\n${text}`;
+                    addLog(`⚠️  Response ${response.status}`, 'error');
+                }
+            } catch (error) {
+                responseBox.className = 'response-box error';
+                responseBox.textContent = `❌ Network Error!\n\n${error.message}\n\nKemungkinan:\n1. Internet connection down\n2. Google Apps Script tidak accessible\n3. Firewall/proxy blocking\n4. URL expired/invalid`;
+                addLog(`❌ Network Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkConnectivity() {
+            const responseBox = document.getElementById('responseBox');
+            responseBox.className = 'response-box';
+            responseBox.textContent = '⏳ Checking internet connectivity...';
+            
+            addLog('🧪 Checking internet connectivity...', 'success');
+            
+            try {
+                // Test 1: Google DNS (fast ping)
+                const test1 = await Promise.race([
+                    fetch('https://dns.google/dns-query?name=google.com', { method: 'HEAD' }),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
+                ]).then(() => true).catch(() => false);
+                
+                addLog(`   Google DNS: ${test1 ? '✅ OK' : '❌ TIMEOUT'}`, test1 ? 'success' : 'error');
+                
+                // Test 2: Google Apps Script
+                const test2 = await Promise.race([
+                    fetch(BASE_URL, { method: 'GET' }),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+                ]).then(r => r.ok || r.status === 404).catch(() => false);
+                
+                addLog(`   Google Apps Script: ${test2 ? '✅ OK' : '❌ TIMEOUT'}`, test2 ? 'success' : 'error');
+                
+                // Summary
+                responseBox.className = 'response-box success';
+                let summary = `📊 CONNECTIVITY CHECK RESULT:\n\n`;
+                summary += `Internet Connection: ${test1 ? '✅ OK' : '❌ DOWN'}\n`;
+                summary += `Google Apps Script: ${test2 ? '✅ ACCESSIBLE' : '❌ NOT ACCESSIBLE'}\n\n`;
+                
+                if (test1 && test2) {
+                    summary += `✅ Semuanya OK! Coba test API endpoint lagi.`;
+                    responseBox.className = 'response-box success';
+                } else if (!test1) {
+                    summary += `❌ Internet connection bermasalah. Cek WiFi/network Anda.`;
+                    responseBox.className = 'response-box error';
+                } else if (!test2) {
+                    summary += `⚠️  Google Apps Script tidak accessible.\n\nSolusi:\n1. Cek URL di browser address bar\n2. Cek deployment di Google Apps Script\n3. Deployment harus PUBLIC\n4. Coba deploy ulang jika perlu`;
+                    responseBox.className = 'response-box error';
+                }
+                
+                responseBox.textContent = summary;
+                
+            } catch (error) {
+                responseBox.className = 'response-box error';
+                responseBox.textContent = `❌ Check failed: ${error.message}`;
+                addLog(`❌ Check failed: ${error.message}`, 'error');
+            }
+        }
+
+        function copyManualCommand() {
+            const commands = {
+                'curl (GET Orders)': `curl "https://script.google.com/macros/s/${SCRIPT_ID}/exec?api=orders"`,
+                'curl (POST Payment)': `curl -X POST "${BASE_URL}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "type": "CONFIRM_PAYMENT",
+    "no_order": "ORD-0002",
+    "status_paid": true,
+    "cloudinary_url": "https://example.com/image.jpg"
+  }'`,
+                'browser console (GET)': `fetch('https://script.google.com/macros/s/${SCRIPT_ID}/exec?api=orders').then(r => r.json()).then(d => console.log(d))`
+            };
+            
+            const responseBox = document.getElementById('responseBox');
+            responseBox.className = 'response-box';
+            responseBox.textContent = `📋 MANUAL TESTING COMMANDS\n\n`;
+            
+            for (const [name, cmd] of Object.entries(commands)) {
+                responseBox.textContent += `${name}:\n${cmd}\n\n${'='.repeat(50)}\n\n`;
+            }
+            
+            // Copy first command
+            const firstCmd = commands['curl (GET Orders)'];
+            navigator.clipboard.writeText(firstCmd).then(() => {
+                showToast('✅ Curl command copied to clipboard!');
+                addLog('📋 Commands copied', 'success');
+            }).catch(() => {
+                showToast('❌ Copy failed, select manually');
+            });
+        }
+
+        addLog('🎉 API Tester dimulai. Siap untuk testing!', 'success');
+    </script>
+</body>
+</html>

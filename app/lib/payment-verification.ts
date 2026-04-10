@@ -444,7 +444,14 @@ async function checkNetworkConnectivity(): Promise<boolean> {
  * Send payment confirmation to Google Apps Script with enhanced retry mechanism
  */
 export async function confirmPayment(noOrder: string, cloudinaryUrl: string, statusPaid: boolean): Promise<void> {
-  console.log('Sending payment confirmation:', { noOrder, cloudinaryUrl, statusPaid });
+  console.log('💾 Sending payment confirmation:', { noOrder, cloudinaryUrl, statusPaid });
+  
+  // VALIDATION: Check if noOrder is valid before sending
+  if (!noOrder || String(noOrder).trim() === '') {
+    console.error('❌ CRITICAL: Cannot confirm payment - noOrder is empty or invalid');
+    console.error('   noOrder:', noOrder);
+    throw new Error('Nomor pesanan tidak valid atau kosong. Tidak dapat mengkonfirmasi pembayaran.');
+  }
   
   // First check network connectivity
   const isOnline = await checkNetworkConnectivity();
@@ -457,7 +464,7 @@ export async function confirmPayment(noOrder: string, cloudinaryUrl: string, sta
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`Payment confirmation attempt ${attempt}/${maxRetries}`);
+      console.log(`🔄 Payment confirmation attempt ${attempt}/${maxRetries} for order: ${noOrder}`);
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 45000); // Increased timeout to 45 seconds
@@ -480,29 +487,29 @@ export async function confirmPayment(noOrder: string, cloudinaryUrl: string, sta
       });
 
       clearTimeout(timeoutId);
-      console.log('Response status:', response.status);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+      console.log('📡 Response status:', response.status);
+      console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Response error:', errorText);
+        console.error('❌ Response error:', errorText);
         throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
       }
 
       const result = await response.json();
-      console.log('Payment confirmation result:', result);
+      console.log('✅ Payment confirmation result:', result);
       
       if (!result.success) {
         throw new Error(result.message || result.error || 'Payment confirmation failed');
       }
       
       // Success - exit retry loop
-      console.log('Payment confirmation successful');
+      console.log('✅ Payment confirmation successful for order:', noOrder);
       return;
       
     } catch (error) {
       lastError = error as Error;
-      console.error(`Payment confirmation attempt ${attempt} failed:`, error);
+      console.error(`❌ Payment confirmation attempt ${attempt} failed:`, error);
       
       // If this is the last attempt, throw the error
       if (attempt === maxRetries) {
@@ -520,14 +527,15 @@ export async function confirmPayment(noOrder: string, cloudinaryUrl: string, sta
       // Progressive delay with longer waits for network errors
       const baseDelay = isNetworkError ? 2000 : 1000;
       const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), 10000);
-      console.log(`Retrying in ${delay}ms...`);
+      console.log(`⏳ Retrying in ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
   
   // If we get here, all retries failed
   const errorMessage = lastError?.message || 'Unknown error';
-  console.error('All payment confirmation attempts failed:', errorMessage);
+  console.error('❌ All payment confirmation attempts failed for order:', noOrder);
+  console.error('   Error:', errorMessage);
   
   // Provide user-friendly error messages based on error type
   if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
@@ -540,6 +548,8 @@ export async function confirmPayment(noOrder: string, cloudinaryUrl: string, sta
     throw new Error('Terlalu banyak permintaan. Silakan tunggu sebentar dan coba lagi.');
   } else if (errorMessage.includes('HTTP 5')) {
     throw new Error('Server sedang bermasalah. Silakan coba lagi dalam beberapa menit.');
+  } else if (errorMessage.includes('tidak ditemukan di database')) {
+    throw new Error(`Gagal mengkonfirmasi pembayaran: ${errorMessage}`);
   } else {
     throw new Error(`Gagal mengkonfirmasi pembayaran: ${errorMessage}`);
   }

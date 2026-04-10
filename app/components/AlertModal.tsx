@@ -55,18 +55,47 @@ export default function AlertModal({
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !noOrder || totalAmount == null) return;
+    
+    // VALIDATION: Check all required data before proceeding
+    if (!file) {
+      console.warn('⚠️ No file selected');
+      return;
+    }
+    
+    if (!noOrder || String(noOrder).trim() === '') {
+      console.error('❌ CRITICAL: noOrder is empty or invalid');
+      console.error('   noOrder value:', noOrder);
+      setVerificationResult({
+        success: false,
+        message: '❌ ERROR: Nomor pesanan hilang atau tidak valid. Silakan refresh halaman dan coba lagi.'
+      });
+      return;
+    }
+    
+    if (totalAmount == null || totalAmount <= 0) {
+      console.error('❌ CRITICAL: totalAmount is invalid');
+      setVerificationResult({
+        success: false,
+        message: '❌ ERROR: Jumlah pembayaran tidak valid. Silakan refresh halaman dan coba lagi.'
+      });
+      return;
+    }
 
     setIsVerifying(true);
     setVerificationResult(null);
 
     try {
-      console.log('Starting payment verification process...');
+      console.log('🔍 Starting payment verification process...');
+      console.log('   Order Number:', noOrder);
+      console.log('   Expected Amount:', totalAmount);
+      console.log('   File:', file.name, file.size, 'bytes');
+      
       const result = await verifyPayment(file, totalAmount);
-      console.log('Payment verification result:', result);
+      console.log('✅ Payment verification result:', result);
 
       if (result.isValid) {
-        console.log('Payment verification successful, confirming payment...');
+        console.log('✅ Payment verification successful, confirming payment...');
+        console.log('   Sending confirmation to backend with noOrder:', noOrder);
         await confirmPayment(noOrder, result.cloudinaryUrl, true);
         setVerificationResult({
           success: true,
@@ -76,24 +105,26 @@ export default function AlertModal({
         // Pass cloudinary URL to parent component
         onPaymentConfirmed?.(result.cloudinaryUrl);
       } else {
-        console.log('Payment verification failed - invalid payment');
+        console.log('⚠️ Payment verification failed - invalid payment');
         const newRetryCount = retryCount + 1;
         setRetryCount(newRetryCount);
         
         if (newRetryCount >= 3) {
           // On 3rd attempt: upload to Cloudinary and save to database (hidden from user)
           try {
-            console.log('3rd attempt - uploading payment proof...');
+            console.log('🔄 3rd attempt - uploading payment proof to Cloudinary...');
             const { uploadToCloudinary } = await import('../lib/payment-verification');
             const cloudinaryUrl = await uploadToCloudinary(file);
-            console.log('Payment proof uploaded to Cloudinary (hidden from user)');
+            console.log('✅ Payment proof uploaded to Cloudinary (hidden from user)');
+            console.log('   URL:', cloudinaryUrl);
             
-            // Save to database
+            // Save to database with noOrder validation
+            console.log('💾 Saving to database with noOrder:', noOrder);
             await confirmPayment(noOrder, cloudinaryUrl, false); // false = payment pending verification
             setSavedCloudinaryUrl(cloudinaryUrl);
-            console.log('Payment proof saved to database');
+            console.log('✅ Payment proof saved to database');
           } catch (uploadError) {
-            console.error('Failed to upload on 3rd attempt:', uploadError);
+            console.error('❌ Failed to upload on 3rd attempt:', uploadError);
           }
           
           setVerificationResult({
@@ -108,7 +139,7 @@ export default function AlertModal({
         }
       }
     } catch (error) {
-      console.error('Verification error:', error);
+      console.error('❌ Verification error:', error);
       
       // Provide more specific error messages based on error type
       let errorMessage = '❌ Terjadi kesalahan saat verifikasi. Silakan coba lagi.';
@@ -122,6 +153,8 @@ export default function AlertModal({
           errorMessage = '❌ Terjadi masalah server. Silakan hubungi admin.';
         } else if (error.message.includes('Upload to Cloudinary failed')) {
           errorMessage = '❌ Gagal mengupload gambar. Periksa koneksi internet Anda.';
+        } else if (error.message.includes('tidak ditemukan di database')) {
+          errorMessage = `❌ Nomor pesanan ${noOrder} tidak ditemukan di database. Silakan hubungi admin dengan order number ini: ${noOrder}`;
         } else if (error.message.includes('Gagal mengkonfirmasi pembayaran')) {
           errorMessage = `❌ ${error.message}`;
         }
@@ -261,6 +294,23 @@ export default function AlertModal({
           <p className="text-gray-700 mb-6 md:mb-8 text-center leading-relaxed text-sm md:text-base lg:text-base font-semibold">
             {message}
           </p>
+
+          {/* Admin Contact - Show for danger/warning alerts */}
+          {(type === 'danger' || type === 'warning') && (
+            <div className="mb-6 md:mb-8 space-y-3 md:space-y-4">
+              <div className="bg-gradient-to-r from-red-100 to-orange-100 border-2 border-red-400 rounded-lg md:rounded-xl p-4 md:p-5 lg:p-5 text-center shadow-sm">
+                <p className="text-xs md:text-sm lg:text-xs text-red-700 font-bold mb-2 md:mb-3 uppercase">📱 Ada Kendala? Hubungi Admin</p>
+                <a 
+                  href="https://wa.me/62882007448066" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="inline-block text-sm md:text-base lg:text-base font-bold text-red-900 font-mono hover:text-white bg-gradient-to-r hover:from-red-600 hover:to-orange-600 px-4 py-2 rounded-lg transition-all duration-300 active:scale-95"
+                >
+                  💬 +62 882-0074-48066 (WhatsApp)
+                </a>
+              </div>
+            </div>
+          )}
 
           {/* Payment Verification Section */}
           {type === 'success' && noOrder && totalAmount != null && (
