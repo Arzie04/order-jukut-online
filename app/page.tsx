@@ -262,57 +262,34 @@ export default function Home() {
     const orderString = orderItems.map(item => `${item.code} ${item.qty}`).join('\n');
 
     try {
-      // Step 1: Get next order number from API
-      console.log('[ORDER] Getting next order number...');
+      // Step 1: Create order on backend so number generation and insert
+      // happen in one locked operation.
+      console.log('[ORDER] Creating order via insert-order API...');
       
-      const orderNumberResponse = await fetch('/api/proxy/config?api=getNextOrderId', {
-        method: 'GET',
+      const orderInsertResponse = await fetch(API_URLS.INSERT_ORDER, {
+        method: 'POST',
         headers: {
-          'Accept': 'application/json',
-        }
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          nama: name,
+          pesanan: orderString,
+          note,
+          total,
+        })
       });
 
-      const orderNumberData = await orderNumberResponse.json();
-      const orderNumber = orderNumberData.no_order;
+      const orderInsertResult = await orderInsertResponse.json();
+      const orderNumber = orderInsertResult.no_order;
 
-      if (!orderNumber) {
-        throw new Error('Gagal generate nomor pesanan');
+      if (!orderInsertResponse.ok || !orderInsertResult.success || !orderNumber) {
+        throw new Error(orderInsertResult?.error || 'Gagal membuat pesanan');
       }
 
-      console.log('[ORDER] Order number generated:', orderNumber);
+      console.log('[ORDER] Order created with number:', orderNumber);
       setCurrentOrderNumber(orderNumber);
 
-      // Step 2: Submit form data to Google Forms (Silent - no new tab, no-cors mode)
-      console.log('[FORM] Submitting order to Google Forms (silent submission)...');
-      
-      try {
-        console.log('[FORM] Sending request to server-side Google Form proxy...');
-        const formResponse = await fetch(API_URLS.SUBMIT_GOOGLE_FORM, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            nama: name,
-            pesanan: orderString,
-            note,
-            total,
-            noOrder: orderNumber,
-          })
-        });
-
-        const formResult = await formResponse.json();
-        console.log('[FORM] Proxy response:', formResult);
-
-        if (!formResponse.ok || !formResult.success) {
-          throw new Error(formResult?.error || 'Google Form submission gagal di server');
-        }
-
-        console.log('[FORM] Google Form submission sent via server proxy');
-      } catch (formError) {
-        console.error('[FORM] Google Form submission error:', formError);
-        throw formError;
-      }
+      // Step 2: Order sudah tersimpan. Lanjut background stock update.
       
       /*
       // Legacy client-side Google Form submission kept only for reference.

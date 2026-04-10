@@ -40,6 +40,47 @@ function formatTimeToWIB(dateObj) {
   return `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss}`;
 }
 
+function extractOrderSequence(noOrder) {
+  const match = String(noOrder || '').trim().match(/^ORD-(\d+)$/);
+  if (!match) {
+    return null;
+  }
+
+  const sequence = parseInt(match[1], 10);
+  return isNaN(sequence) ? null : sequence;
+}
+
+function buildOrderId(sequence) {
+  return `ORD-${String(sequence).padStart(4, '0')}`;
+}
+
+function getNextOrderIdValue(sheet) {
+  const targetSheet = sheet || SpreadsheetApp
+    .getActiveSpreadsheet()
+    .getSheetByName("Form Responses 1");
+
+  if (!targetSheet) {
+    throw new Error("Sheet 'Form Responses 1' tidak ditemukan");
+  }
+
+  const lastRow = targetSheet.getLastRow();
+  if (lastRow < 2) {
+    return buildOrderId(1);
+  }
+
+  const orderColumnValues = targetSheet.getRange(2, 6, lastRow - 1, 1).getValues();
+  let maxSequence = 0;
+
+  orderColumnValues.forEach(function(row) {
+    const sequence = extractOrderSequence(row[0]);
+    if (sequence !== null && sequence > maxSequence) {
+      maxSequence = sequence;
+    }
+  });
+
+  return buildOrderId(maxSequence + 1);
+}
+
 /* =========================
    MAIN ENTRY POINT (doGet)
    See: SCRIPT_ENDPOINTS_REFERENCE.md
@@ -617,6 +658,105 @@ function insertNewOrder(body) {
     console.error('Stack trace:', error);
     return jsonOutput({ 
       success: false, 
+      error: error.toString()
+    });
+  } finally {
+    console.log('=== END insertNewOrder ===\n');
+  }
+}
+
+// Override lama: nomor order sekarang global dan tidak reset harian.
+function getNextOrderIdApi() {
+  try {
+    const result = getNextOrderIdValue();
+    console.log('Next global order ID:', result);
+    return jsonOutput({ no_order: result, success: true });
+  } catch (error) {
+    console.error('Error in getNextOrderIdApi:', error.toString());
+    return jsonOutput({
+      no_order: `ORD-ERR-${Date.now().toString().slice(-5)}`,
+      success: false,
+      error: error.toString(),
+      timestamp: new Date().toISOString()
+    });
+  }
+}
+
+// Override lama: insert order harus generate no_order saat lock doPost aktif.
+function insertNewOrder(body) {
+  try {
+    console.log('=== START insertNewOrder ===');
+    console.log('Received data:', JSON.stringify(body));
+
+    const nama = String(body.nama || '').trim();
+    const pesanan = String(body.pesanan || '').trim();
+    const total = Number(body.total);
+
+    if (!nama) {
+      return jsonOutput({
+        success: false,
+        error: "Nama tidak boleh kosong"
+      });
+    }
+
+    if (!pesanan) {
+      return jsonOutput({
+        success: false,
+        error: "Pesanan tidak boleh kosong"
+      });
+    }
+
+    if (isNaN(total) || total <= 0) {
+      return jsonOutput({
+        success: false,
+        error: "Total harus lebih dari 0"
+      });
+    }
+
+    const sheet = SpreadsheetApp
+      .getActiveSpreadsheet()
+      .getSheetByName("Form Responses 1");
+
+    if (!sheet) {
+      return jsonOutput({
+        success: false,
+        error: "Sheet tidak ditemukan"
+      });
+    }
+
+    const noOrder = getNextOrderIdValue(sheet);
+    const nowWIB = getNowInWIB();
+    const note = String(body.note || '').trim();
+    const status = body.status || "terbaru";
+
+    sheet.appendRow([
+      nowWIB,
+      nama,
+      pesanan,
+      note,
+      total,
+      noOrder,
+      false,
+      '',
+      status,
+      ''
+    ]);
+
+    console.log('Order inserted with no_order:', noOrder);
+
+    return jsonOutput({
+      success: true,
+      message: "Pesanan berhasil dibuat",
+      no_order: noOrder,
+      nama: nama,
+      total: total,
+      timestamp: nowWIB.toISOString()
+    });
+  } catch (error) {
+    console.error('ERROR in insertNewOrder:', error.toString());
+    console.error('Stack trace:', error);
+    return jsonOutput({
+      success: false,
       error: error.toString()
     });
   } finally {
