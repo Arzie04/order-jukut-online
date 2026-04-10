@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import ConsoleGate from "./components/ConsoleGate";
 
 export const metadata: Metadata = {
   title: "Pesan Makanan - Jukut Online",
@@ -14,6 +15,7 @@ export default function RootLayout({
   return (
     <html lang="id">
       <body className="animated-gradient">
+        <ConsoleGate />
         {children}
       </body>
     </html>

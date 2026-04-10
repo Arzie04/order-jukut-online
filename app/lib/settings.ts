@@ -7,7 +7,9 @@
 // 1. MODE PENGEMBANG (DEVELOPER MODE)
 //    - true  : Toko dianggap SELALU BUKA (bypass jam operasional & limit order).
 //              Halaman '/closed' bisa diakses manual meski statusnya 'off'.
+//              Log developer di browser/server Next.js ditampilkan.
 //    - false : Aplikasi berjalan normal sesuai aturan bisnis.
+//              Log developer dibungkam dari app web untuk output yang lebih bersih.
 export const DEVELOPER_MODE = false;
 
 // 2. STATUS HALAMAN TUTUP (MAINTENANCE / LIBUR PANJANG)

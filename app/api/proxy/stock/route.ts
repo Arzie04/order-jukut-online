@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { GOOGLE_APPS_SCRIPT_URL } from '../../../lib/api-config';
+import { devError } from '../../../lib/logger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
     nextResponse.headers.set('CDN-Cache-Control', 'max-age=45');
     return nextResponse;
   } catch (error) {
-    console.error('Stock proxy error:', error);
+    devError('Stock proxy error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch stock data' },
       { status: 500 }

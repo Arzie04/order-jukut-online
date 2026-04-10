@@ -47,6 +47,7 @@ const menuItems = {
 
 interface OrderButtonGridProps {
   onAddItem: (code: string) => void;
+  isPackageOutOfStock?: boolean;
   isNdjOutOfStock?: boolean;
 }
 
@@ -82,7 +83,7 @@ const imageMap: { [key:string]: string } = {
     'NP KL': '/Foto Produk/Non Paket Kulit.webp',
 };
 
-export default function OrderButtonGrid({ onAddItem, isNdjOutOfStock }: OrderButtonGridProps) {
+export default function OrderButtonGrid({ onAddItem, isPackageOutOfStock, isNdjOutOfStock }: OrderButtonGridProps) {
   const [activeCategory, setActiveCategory] = useState('Paket');
 
   return (
@@ -108,6 +109,9 @@ export default function OrderButtonGrid({ onAddItem, isNdjOutOfStock }: OrderBut
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         {menuItems[activeCategory as keyof typeof menuItems].map((item) => {
           const imageSrc = imageMap[item.code];
+          const isDisabled =
+            (isPackageOutOfStock && activeCategory === 'Paket') ||
+            (isNdjOutOfStock && activeCategory === 'Paket NDJ');
           
           if (imageSrc) {
             return (
@@ -115,7 +119,7 @@ export default function OrderButtonGrid({ onAddItem, isNdjOutOfStock }: OrderBut
                 type="button"
                 key={item.code}
                 onClick={() => onAddItem(item.code)}
-                disabled={isNdjOutOfStock && activeCategory === 'Paket NDJ'}
+                disabled={isDisabled}
                 className="bg-white/50 border border-white/30 rounded-2xl shadow-sm text-center transition-all duration-150 active:scale-95 active:border-[#D4E157] overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="w-full h-24 bg-black/10">
@@ -133,7 +137,7 @@ export default function OrderButtonGrid({ onAddItem, isNdjOutOfStock }: OrderBut
               type="button"
               key={item.code}
               onClick={() => onAddItem(item.code)}
-              disabled={isNdjOutOfStock && activeCategory === 'Paket NDJ'}
+              disabled={isDisabled}
               className="bg-white/50 hover:bg-white/70 text-gray-800 font-semibold py-3 px-3 border border-white/30 rounded-xl shadow-sm text-xs md:text-sm transition-all duration-100 active:scale-95 active:border-[#D4E157] flex flex-col items-center justify-center text-center h-full min-h-[60px] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {item.name}

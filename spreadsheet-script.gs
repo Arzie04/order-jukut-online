@@ -54,7 +54,7 @@ function buildOrderId(sequence) {
   return `ORD-${String(sequence).padStart(4, '0')}`;
 }
 
-function getNextOrderIdValue(sheet) {
+function getMaxOrderSequenceFromSheet(sheet) {
   const targetSheet = sheet || SpreadsheetApp
     .getActiveSpreadsheet()
     .getSheetByName("Form Responses 1");
@@ -65,7 +65,7 @@ function getNextOrderIdValue(sheet) {
 
   const lastRow = targetSheet.getLastRow();
   if (lastRow < 2) {
-    return buildOrderId(1);
+    return 0;
   }
 
   const orderColumnValues = targetSheet.getRange(2, 6, lastRow - 1, 1).getValues();
@@ -78,7 +78,17 @@ function getNextOrderIdValue(sheet) {
     }
   });
 
-  return buildOrderId(maxSequence + 1);
+  return maxSequence;
+}
+
+function reserveNextOrderId(sheet) {
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const currentCounter = parseInt(scriptProperties.getProperty('ORDER_SEQUENCE_COUNTER') || '0', 10) || 0;
+  const maxSheetSequence = getMaxOrderSequenceFromSheet(sheet);
+  const nextSequence = Math.max(currentCounter, maxSheetSequence) + 1;
+
+  scriptProperties.setProperty('ORDER_SEQUENCE_COUNTER', String(nextSequence));
+  return buildOrderId(nextSequence);
 }
 
 /* =========================
@@ -206,110 +216,6 @@ function getOrders() {
     console.error('❌ Error in getOrders:', e.toString());
     console.error('Stack:', e);
     return jsonOutput({ error: e.toString(), success: false });
-  }
-}
-
-/* =========================
-   GET NEXT ORDER ID (For Order Numbering - NO LIMITS)
-   Ini dipanggil khusus untuk generate nomor order, jadi fetch ALL rows
-========================= */
-function getNextOrderIdApi() {
-  try {
-    console.log('📘 getNextOrderIdApi called');
-    
-    const sheet = SpreadsheetApp
-      .getActiveSpreadsheet()
-      .getSheetByName("Form Responses 1");
-    
-    if (!sheet) {
-      console.error('❌ Sheet Form Responses 1 not found');
-      throw new Error("Sheet 'Form Responses 1' tidak ditemukan");
-    }
-    
-    const data = sheet.getDataRange().getValues();
-    console.log(`📊 Total rows in sheet: ${data.length}`);
-    
-    if (data.length < 2) {
-      console.log('ℹ️  Sheet is empty or only has header, returning ORD-0001');
-      return jsonOutput({ no_order: "ORD-0001" });
-    }
-    
-    const rows = data.slice(1); // Skip header
-    console.log(`📊 Processing ${rows.length} rows`);
-
-    // NO LIMITS: Get ALL orders to find today's count
-    const todayWIB = getTodayDateWIB();
-    const y = todayWIB.year;
-    const m = todayWIB.month;
-    const d = todayWIB.date;
-    
-    console.log(`🗓️  Looking for orders from: ${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')} (WIB)`);
-
-    const todaysOrders = rows.filter((row, idx) => {
-      if (!row || row.length === 0) {
-        console.log(`⚠️  Row ${idx}: empty or null`);
-        return false;
-      }
-      
-      const waktu = row[0];
-      const noOrder = row[5];
-      
-      if (!waktu || !noOrder) {
-        return false;
-      }
-      
-      try {
-        const t = new Date(waktu);
-        if (isNaN(t.getTime())) {
-          console.log(`⚠️  Row ${idx}: invalid date`);
-          return false;
-        }
-        
-        const isTodaysOrder = t.getFullYear() === y && t.getMonth() === m && t.getDate() === d;
-        if (isTodaysOrder) {
-          console.log(`✅ Row ${idx}: TODAY order found - ${noOrder}`);
-        }
-        return isTodaysOrder;
-      } catch (e) {
-        console.log(`⚠️  Row ${idx}: error parsing date - ${e.toString()}`);
-        return false;
-      }
-    });
-
-    console.log(`🎯 Total today's orders found: ${todaysOrders.length}`);
-
-    if (todaysOrders.length === 0) {
-      console.log('ℹ️  No orders today, returning ORD-0001');
-      return jsonOutput({ no_order: "ORD-0001" });
-    }
-
-    // Find max number from today
-    let maxNum = 0;
-    todaysOrders.forEach((row, idx) => {
-      const noOrder = row[5];
-      if (noOrder && typeof noOrder === 'string' && noOrder.startsWith('ORD-')) {
-        const num = parseInt(noOrder.replace('ORD-', ''), 10);
-        if (!isNaN(num)) {
-          console.log(`ℹ️  Order ${idx}: ${noOrder} → number ${num}`);
-          if (num > maxNum) maxNum = num;
-        }
-      }
-    });
-
-    const nextNum = maxNum + 1;
-    const result = `ORD-${nextNum.toString().padStart(4, '0')}`;
-    console.log(`✅ Next order ID: ${result}`);
-    return jsonOutput({ no_order: result });
-
-  } catch (error) {
-    console.error('❌ Error in getNextOrderIdApi:', error.toString());
-    console.error('Stack:', error);
-    
-    return jsonOutput({ 
-      no_order: `ORD-ERR-${Date.now().toString().slice(-5)}`,
-      error: error.toString(),
-      timestamp: new Date().toISOString()
-    });
   }
 }
 
@@ -541,134 +447,12 @@ function deleteOrder(noOrder) {
   }
 }
 
-/* =========================
-   INSERT NEW ORDER (SC-B0 - NEW)
-   Endpoint untuk membuat order baru langsung dari API
-   ========================= */
-function insertNewOrder(body) {
-  try {
-    console.log('=== START insertNewOrder ===');
-    console.log('Received data:', JSON.stringify(body));
-    
-    // VALIDATION: Check required fields
-    const nama = String(body.nama || '').trim();
-    const pesanan = String(body.pesanan || '').trim();
-    const total = body.total;
-    
-    console.log('Validation:');
-    console.log('  nama: ' + (nama ? 'OK (' + nama + ')' : 'EMPTY'));
-    console.log('  pesanan: ' + (pesanan ? 'OK (length:' + pesanan.length + ')' : 'EMPTY'));
-    console.log('  total: ' + (total ? 'OK (' + total + ')' : 'EMPTY'));
-    
-    if (!nama) {
-      console.error('VALIDATION FAILED: nama is empty');
-      return jsonOutput({ 
-        success: false, 
-        error: "Nama tidak boleh kosong"
-      });
-    }
-    
-    if (!pesanan) {
-      console.error('VALIDATION FAILED: pesanan is empty');
-      return jsonOutput({ 
-        success: false, 
-        error: "Pesanan tidak boleh kosong"
-      });
-    }
-    
-    if (total == null || total <= 0) {
-      console.error('VALIDATION FAILED: total invalid - ' + total);
-      return jsonOutput({ 
-        success: false, 
-        error: "Total harus lebih dari 0"
-      });
-    }
-    
-    // Get next order ID
-    console.log('Getting next order ID...');
-    const nextOrderResponse = getNextOrderIdApi();
-    const nextOrderData = JSON.parse(nextOrderResponse.getContent());
-    const noOrder = nextOrderData.no_order;
-    
-    console.log('Generated order ID: ' + noOrder);
-    
-    if (!noOrder) {
-      console.error('FAILED: No order ID generated');
-      return jsonOutput({ 
-        success: false, 
-        error: "Gagal generate nomor pesanan"
-      });
-    }
-    
-    // Get sheet
-    const sheet = SpreadsheetApp
-      .getActiveSpreadsheet()
-      .getSheetByName("Form Responses 1");
-    
-    if (!sheet) {
-      console.error('FAILED: Sheet "Form Responses 1" not found');
-      return jsonOutput({ 
-        success: false, 
-        error: "Sheet tidak ditemukan" 
-      });
-    }
-    
-    console.log('Sheet found. Current row count: ' + sheet.getLastRow());
-    
-    // Prepare new row data
-    const nowWIB = getNowInWIB();
-    const note = String(body.note || '').trim();
-    const status = body.status || "terbaru";
-    
-    const newRow = [
-      nowWIB,           // Column A: waktu
-      nama,             // Column B: nama
-      pesanan,          // Column C: pesanan
-      note,             // Column D: note
-      total,            // Column E: total
-      noOrder,          // Column F: no_order
-      false,            // Column G: paid
-      '',               // Column H: empty
-      status,           // Column I: status
-      ''                // Column J: bukti_pembayaran
-    ];
-    
-    console.log('Appending row with data:');
-    console.log('  Waktu: ' + nowWIB);
-    console.log('  Nama: ' + nama);
-    console.log('  Pesanan: ' + pesanan.substring(0, 50) + '...');
-    console.log('  Total: ' + total);
-    console.log('  No Order: ' + noOrder);
-    
-    sheet.appendRow(newRow);
-    
-    console.log('SUCCESS: Row appended. New row count: ' + sheet.getLastRow());
-    
-    return jsonOutput({
-      success: true,
-      message: "Pesanan berhasil dibuat",
-      no_order: noOrder,
-      nama: nama,
-      total: total,
-      timestamp: nowWIB.toISOString()
-    });
-    
-  } catch (error) {
-    console.error('ERROR in insertNewOrder:', error.toString());
-    console.error('Stack trace:', error);
-    return jsonOutput({ 
-      success: false, 
-      error: error.toString()
-    });
-  } finally {
-    console.log('=== END insertNewOrder ===\n');
-  }
-}
-
-// Override lama: nomor order sekarang global dan tidak reset harian.
+// Nomor order sekarang global dan tidak reset harian.
 function getNextOrderIdApi() {
+  var lock = LockService.getScriptLock();
   try {
-    const result = getNextOrderIdValue();
+    lock.waitLock(10000);
+    const result = reserveNextOrderId();
     console.log('Next global order ID:', result);
     return jsonOutput({ no_order: result, success: true });
   } catch (error) {
@@ -679,10 +463,19 @@ function getNextOrderIdApi() {
       error: error.toString(),
       timestamp: new Date().toISOString()
     });
+  } finally {
+    try {
+      lock.releaseLock();
+    } catch (releaseError) {
+      console.error('Failed to release getNextOrderIdApi lock:', releaseError.toString());
+    }
   }
 }
 
-// Override lama: insert order harus generate no_order saat lock doPost aktif.
+/* =========================
+   INSERT NEW ORDER (SC-B0 - NEW)
+   Endpoint untuk membuat order baru langsung dari API
+   ========================= */
 function insertNewOrder(body) {
   try {
     console.log('=== START insertNewOrder ===');
@@ -724,7 +517,7 @@ function insertNewOrder(body) {
       });
     }
 
-    const noOrder = getNextOrderIdValue(sheet);
+    const noOrder = reserveNextOrderId(sheet);
     const nowWIB = getNowInWIB();
     const note = String(body.note || '').trim();
     const status = body.status || "terbaru";
@@ -972,6 +765,11 @@ function getOrderItemCount() {
   const d = todayWIB.date;
 
   let totalItemCount = 0;
+  const parseLineQuantity = (parts) => {
+    const lastPart = String(parts[parts.length - 1] || '').trim();
+    const qty = parseInt(lastPart, 10);
+    return Number.isNaN(qty) ? 1 : qty;
+  };
 
   const todayOrders = rows.filter(row => {
     const noOrder = row[5];
@@ -994,11 +792,7 @@ function getOrderItemCount() {
         if (parts.length >= 2) {
           const prefix = parts[0];
           if (prefix === 'PKT' || prefix === 'NP') {
-            if (parts.length >= 3) {
-              totalItemCount += (parseInt(parts[2], 10) || 1);
-            } else {
-              totalItemCount += 1;
-            }
+            totalItemCount += parseLineQuantity(parts);
           }
         }
       });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { GOOGLE_APPS_SCRIPT_URL } from '../../../lib/api-config';
+import { devError, devLog } from '../../../lib/logger';
 
 interface InsertOrderBody {
   nama: string;
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
     // Parse request
     const body = (await request.json()) as InsertOrderBody;
 
-    console.log('[INSERT_ORDER] Request received:', {
+    devLog('[INSERT_ORDER] Request received:', {
       nama: body.nama,
       pesanan: body.pesanan ? body.pesanan.substring(0, 50) : '',
       note: body.note,
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!body.nama || !body.pesanan || body.total == null) {
-      console.error('[INSERT_ORDER] Validation failed - missing required fields');
+      devError('[INSERT_ORDER] Validation failed - missing required fields');
       return NextResponse.json(
         { 
           success: false, 
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
       status: 'terbaru'
     };
 
-    console.log('[INSERT_ORDER] Sending to Apps Script:', appsScriptPayload);
+    devLog('[INSERT_ORDER] Sending to Apps Script:', appsScriptPayload);
 
     // Call Apps Script with timeout
     const controller = new AbortController();
@@ -64,13 +65,13 @@ export async function POST(request: NextRequest) {
     let responseData;
     const responseText = await response.text();
 
-    console.log('[INSERT_ORDER] Apps Script response status:', response.status);
-    console.log('[INSERT_ORDER] Apps Script response text:', responseText);
+    devLog('[INSERT_ORDER] Apps Script response status:', response.status);
+    devLog('[INSERT_ORDER] Apps Script response text:', responseText);
 
     try {
       responseData = JSON.parse(responseText);
     } catch (e) {
-      console.error('[INSERT_ORDER] Failed to parse JSON response:', responseText);
+      devError('[INSERT_ORDER] Failed to parse JSON response:', responseText);
       return NextResponse.json(
         { 
           success: false, 
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
 
     // Check if Apps Script returned an error
     if (!responseData.success) {
-      console.error('[INSERT_ORDER] Apps Script error:', responseData.error);
+      devError('[INSERT_ORDER] Apps Script error:', responseData.error);
       return NextResponse.json(
         { 
           success: false, 
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[INSERT_ORDER] Success - Order number:', responseData.no_order);
+    devLog('[INSERT_ORDER] Success - Order number:', responseData.no_order);
 
     // Return success response
     return NextResponse.json({
@@ -104,7 +105,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('[INSERT_ORDER] Error:', error);
+    devError('[INSERT_ORDER] Error:', error);
 
     // Distinguish between different error types
     if (error.name === 'AbortError') {

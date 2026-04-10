@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { GOOGLE_FORM_FIELDS, GOOGLE_FORM_URL } from '../../../lib/api-config';
+import { devError, devLog } from '../../../lib/logger';
 
 interface SubmitGoogleFormBody {
   nama: string;
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as SubmitGoogleFormBody;
 
     if (!GOOGLE_FORM_URL) {
-      console.error('[GOOGLE_FORM] Google Form URL is not configured');
+      devError('[GOOGLE_FORM] Google Form URL is not configured');
       return NextResponse.json(
         {
           success: false,
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
       body: formData,
     });
 
-    console.log('[GOOGLE_FORM] Submission status:', response.status);
+    devLog('[GOOGLE_FORM] Submission status:', response.status);
 
     return NextResponse.json({
       success: true,
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('[GOOGLE_FORM] Submission error:', error);
+    devError('[GOOGLE_FORM] Submission error:', error);
 
     return NextResponse.json(
       {

@@ -47,6 +47,7 @@ export interface OrderingPageProps {
   whatsappMessage: string;
   baseMessage?: string;
   priceMap: { [key: string]: number };
+  isPackageOutOfStock?: boolean;
   isNdjOutOfStock?: boolean;
   // New props for payment verification
   noOrder?: string;
@@ -61,16 +62,17 @@ export interface OrderingPageProps {
   handleOpenConfirm: () => boolean;
   handleModalSubmit: () => Promise<void>;
   handleAddOrUpdateItem: (code: string, newQty?: number) => void;
+  handleMovePackageVariant: (code: string, targetVariant: 'SI' | 'SB') => void;
 }
 
 // The component is now much simpler (presentational)
 export default function OrderingPage({
   name, note, total, calcDetails, showCalcResult, alert, isStoreOpen,
   statusReason, openingTimeText, closingTimeText, stock, orderItems,
-  isSubmitting, whatsappUrl, whatsappMessage, baseMessage, priceMap, isNdjOutOfStock,
+  isSubmitting, whatsappUrl, whatsappMessage, baseMessage, priceMap, isPackageOutOfStock, isNdjOutOfStock,
   noOrder, currentOrderTotal, onPaymentConfirmed,
   setName, setNote, setAlert, calculateTotal, handleOpenConfirm,
-  handleModalSubmit, handleAddOrUpdateItem
+  handleModalSubmit, handleAddOrUpdateItem, handleMovePackageVariant
 }: OrderingPageProps) {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showAlertModal, setShowAlertModal] = useState(!!alert);
@@ -139,8 +141,10 @@ export default function OrderingPage({
             handleOpenConfirm={openConfirm}
             orderItems={orderItems}
             handleAddOrUpdateItem={handleAddOrUpdateItem}
+            handleMovePackageVariant={handleMovePackageVariant}
             total={total}
             priceMap={priceMap}
+            isPackageOutOfStock={isPackageOutOfStock}
             isNdjOutOfStock={isNdjOutOfStock}
           />
         </div>

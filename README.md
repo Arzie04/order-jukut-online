@@ -1,5 +1,10 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Main Documentation
+
+- `TEMPLATE_SETUP_GUIDE.md` - Panduan detail untuk memakai repo ini sebagai template usaha lain
+- `CURRENT_OPERATIONS_REFERENCE.md` - Referensi link, endpoint, dan setup aktif Jukut saat ini
+
 ## Recent Updates (April 9, 2026)
 
 ### New Features

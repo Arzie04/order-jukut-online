@@ -23,8 +23,10 @@ interface OrderFormProps {
   // New props for button-based UI
   orderItems: OrderItem[];
   handleAddOrUpdateItem: (code: string, qty?: number) => void;
+  handleMovePackageVariant: (code: string, targetVariant: 'SI' | 'SB') => void;
   total: number;
   priceMap: { [key: string]: number };
+  isPackageOutOfStock?: boolean;
   isNdjOutOfStock?: boolean;
 }
 
@@ -41,8 +43,10 @@ export default function OrderForm({
   handleOpenConfirm,
   orderItems,
   handleAddOrUpdateItem,
+  handleMovePackageVariant,
   total,
   priceMap,
+  isPackageOutOfStock,
   isNdjOutOfStock,
 }: OrderFormProps) {
 
@@ -74,7 +78,11 @@ export default function OrderForm({
             </label>
           </div>
           
-          <OrderButtonGrid onAddItem={handleAddItem} isNdjOutOfStock={isNdjOutOfStock} />
+          <OrderButtonGrid
+            onAddItem={handleAddItem}
+            isPackageOutOfStock={isPackageOutOfStock}
+            isNdjOutOfStock={isNdjOutOfStock}
+          />
         </div>
       </div>
 
@@ -104,9 +112,15 @@ export default function OrderForm({
       {/* Mobile: Urutan 3. Desktop: Kolom Kanan, Baris 2 */}
       <div className="lg:col-span-4 lg:col-start-9 lg:row-start-3">
          <div className="lg:bg-transparent lg:px-6 lg:py-2">
-            <CurrentOrder order={orderItems} onUpdateQty={handleUpdateQty} total={total} priceMap={priceMap} />
+            <CurrentOrder
+              order={orderItems}
+              onUpdateQty={handleUpdateQty}
+              onMovePackageVariant={handleMovePackageVariant}
+              total={total}
+              priceMap={priceMap}
+            />
             <small className="text-gray-700 block mt-2">
-              Klik tombol untuk menambah pesanan. Anda bisa mengatur jumlah di "Pesanan Anda".
+              Klik tombol untuk menambah pesanan. Untuk paket, sambal bawang bisa dipindah per 1 porsi dari area &quot;Pesanan Anda&quot;.
             </small>
          </div>
       </div>

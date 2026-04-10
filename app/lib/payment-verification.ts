@@ -1,5 +1,6 @@
 import { createWorker } from 'tesseract.js';
 import { APPS_SCRIPT_URL, CLOUDINARY_CLOUD_NAME } from './settings';
+import { devError, devLog, devWarn } from './logger';
 
 export interface PaymentVerificationResult {
   isValid: boolean;
@@ -38,7 +39,7 @@ export async function uploadToCloudinary(file: File): Promise<string> {
  */
 export async function extractTextFromImage(imageSource: string | File): Promise<{ text: string; confidence: number }> {
   const worker = await createWorker('ind', 1, {
-    logger: m => console.log(m)
+    logger: m => devLog(m)
   });
 
   try {
@@ -177,16 +178,16 @@ function extractAmountByLabel(text: string): number | null {
     /([\d]{2,3}\.[\d]{3}(?:,[\d]{2})?)/i // matches like 12.000 or 12.000,00
   ];
 
-  console.log('  Trying label-based extraction with multiple patterns...');
+  devLog('  Trying label-based extraction with multiple patterns...');
   
   for (const pattern of patterns) {
     const match = text.match(pattern);
     if (match) {
       const raw = match[1];
-      console.log(`    Pattern match: ${pattern} → "${raw}"`);
+      devLog(`    Pattern match: ${pattern} → "${raw}"`);
       const amount = parseAmount(raw);
       if (isValidAmount(amount)) {
-        console.log(`    ✅ Valid amount found: ${amount}`);
+        devLog(`    ✅ Valid amount found: ${amount}`);
         return amount;
       }
     }
@@ -200,7 +201,7 @@ function extractAmountByLabel(text: string): number | null {
  * IMPROVED: Uses updated parseAmount that handles formatted numbers correctly
  */
 function extractByCandidates(text: string): number | null {
-  console.log('    Fallback: searching for amount candidates...');
+  devLog('    Fallback: searching for amount candidates...');
   
   // Match various patterns with proper formatting support
   const patterns = [
@@ -216,25 +217,25 @@ function extractByCandidates(text: string): number | null {
     while ((match = pattern.exec(text)) !== null) {
       const raw = match[1] || match[0];
       const amount = parseAmount(raw);
-      console.log(`      Candidate: "${raw}" → ${amount}`);
+      devLog(`      Candidate: "${raw}" → ${amount}`);
       
       if (isValidAmount(amount)) {
         candidates.add(amount);
-        console.log(`        ✅ Valid: ${amount}`);
+        devLog(`        ✅ Valid: ${amount}`);
       }
     }
   }
 
   if (candidates.size === 0) {
-    console.log('    ⚠️ No valid candidates found');
+    devLog('    ⚠️ No valid candidates found');
     return null;
   }
 
   const amounts = Array.from(candidates).sort((a, b) => b - a);
-  console.log(`  ⚠️ Fallback: found ${amounts.length} candidates: ${amounts.join(', ')}`);
+  devLog(`  ⚠️ Fallback: found ${amounts.length} candidates: ${amounts.join(', ')}`);
   
   const largest = amounts[0];
-  console.log(`  ⚠️ Using largest: ${largest}`);
+  devLog(`  ⚠️ Using largest: ${largest}`);
   return largest;
 }
 
@@ -243,38 +244,38 @@ function extractByCandidates(text: string): number | null {
  * Strategy: 1) Label-based (TOTAL, NOMINAL) 2) Fallback to largest valid amount
  */
 export function extractQRISAmount(ocrText: string): number | null {
-  console.log('🔍 === EXTRACTING QRIS AMOUNT ===');
-  console.log('Raw OCR text:');
-  console.log(JSON.stringify(ocrText));
-  console.log('Text length:', ocrText.length);
-  console.log('');
+  devLog('🔍 === EXTRACTING QRIS AMOUNT ===');
+  devLog('Raw OCR text:');
+  devLog(JSON.stringify(ocrText));
+  devLog('Text length:', ocrText.length);
+  devLog('');
   
   const text = normalize(ocrText);
-  console.log('Normalized text:');
-  console.log(JSON.stringify(text));
-  console.log('');
+  devLog('Normalized text:');
+  devLog(JSON.stringify(text));
+  devLog('');
 
   // 1. PRIORITAS: label-based extraction
-  console.log('Step 1: Label-based extraction...');
+  devLog('Step 1: Label-based extraction...');
   const labeled = extractAmountByLabel(text);
   if (labeled !== null) {
-    console.log(`✅ FOUND via label: ${labeled}`);
-    console.log('🔍 === EXTRACTION END ===\n');
+    devLog(`✅ FOUND via label: ${labeled}`);
+    devLog('🔍 === EXTRACTION END ===\n');
     return labeled;
   }
-  console.log('  Label-based extraction failed, trying fallback...\n');
+  devLog('  Label-based extraction failed, trying fallback...\n');
 
   // 2. FALLBACK: candidate terbesar
-  console.log('Step 2: Fallback extraction (largest candidate)...');
+  devLog('Step 2: Fallback extraction (largest candidate)...');
   const fallback = extractByCandidates(text);
   if (fallback !== null) {
-    console.log(`✅ FOUND via fallback: ${fallback}`);
-    console.log('🔍 === EXTRACTION END ===\n');
+    devLog(`✅ FOUND via fallback: ${fallback}`);
+    devLog('🔍 === EXTRACTION END ===\n');
     return fallback;
   }
   
-  console.warn('❌ Could not extract any valid amount');
-  console.log('🔍 === EXTRACTION END ===\n');
+  devWarn('❌ Could not extract any valid amount');
+  devLog('🔍 === EXTRACTION END ===\n');
   return null;
 }
 
@@ -282,14 +283,14 @@ export function extractQRISAmount(ocrText: string): number | null {
  * Validate payment from extracted text using smart QRIS parser
  */
 export function validatePayment(text: string, expectedAmount: number): boolean {
-  console.log('\n=== PAYMENT VALIDATION START ===');
-  console.log('Expected amount:', expectedAmount);
-  console.log('');
+  devLog('\n=== PAYMENT VALIDATION START ===');
+  devLog('Expected amount:', expectedAmount);
+  devLog('');
 
   const lowerText = text.toLowerCase();
 
   // Check 1: Verify outlet identifier (support both Semarang and other outlets)
-  console.log('Check 1: Outlet identifier...');
+  devLog('Check 1: Outlet identifier...');
   const outletKeywords = [
     'ayam jukut cabe ijo',     // Full name
     'ayam jukut',              // Partial
@@ -303,15 +304,15 @@ export function validatePayment(text: string, expectedAmount: number): boolean {
   const hasOutletMatch = outletKeywords.some(keyword => lowerText.includes(keyword));
   
   if (!hasOutletMatch) {
-    console.warn('❌ FAILED: Outlet identifier not found');
-    console.warn('  Required one of:', outletKeywords.join(', '));
-    console.log('=== PAYMENT VALIDATION END (FAILED) ===\n');
+    devWarn('❌ FAILED: Outlet identifier not found');
+    devWarn('  Required one of:', outletKeywords.join(', '));
+    devLog('=== PAYMENT VALIDATION END (FAILED) ===\n');
     return false;
   }
-  console.log('✅ Outlet identifier found\n');
+  devLog('✅ Outlet identifier found\n');
 
   // Check 2: Success keywords + Bank info (Bima shows "berhasil", "status transaksi" header, etc)
-  console.log('Check 2: Success/Completion keywords...');
+  devLog('Check 2: Success/Completion keywords...');
   const successKeywords = [
     'berhasil',              // Bima Bank: "Status transaksi Berhasil"
     'success',               // English
@@ -325,57 +326,57 @@ export function validatePayment(text: string, expectedAmount: number): boolean {
   const foundKeywords = successKeywords.filter(kw => lowerText.includes(kw));
   const hasSuccess = foundKeywords.length > 0;
 
-  console.log('Success keywords to check:', successKeywords.join(', '));
-  console.log('Found keywords:', foundKeywords.length > 0 ? foundKeywords.join(', ') : 'NONE');
-  console.log('');
+  devLog('Success keywords to check:', successKeywords.join(', '));
+  devLog('Found keywords:', foundKeywords.length > 0 ? foundKeywords.join(', ') : 'NONE');
+  devLog('');
 
   if (!hasSuccess) {
-    console.warn('❌ FAILED: No success keyword found');
-    console.log('=== PAYMENT VALIDATION END (FAILED) ===\n');
+    devWarn('❌ FAILED: No success keyword found');
+    devLog('=== PAYMENT VALIDATION END (FAILED) ===\n');
     return false;
   }
 
-  console.log('✅ Success keyword found\n');
+  devLog('✅ Success keyword found\n');
 
   // Check 3: Amount validation
-  console.log('Check 3: Amount validation...');
-  console.log('Extracting amount from OCR text...');
+  devLog('Check 3: Amount validation...');
+  devLog('Extracting amount from OCR text...');
   const extractedAmount = extractQRISAmount(text);
   
   if (extractedAmount === null) {
-    console.warn('❌ FAILED: Could not extract any valid amount from OCR');
-    console.log('=== PAYMENT VALIDATION END (FAILED) ===\n');
+    devWarn('❌ FAILED: Could not extract any valid amount from OCR');
+    devLog('=== PAYMENT VALIDATION END (FAILED) ===\n');
     return false;
   }
 
-  console.log(`✅ Amount extracted: ${extractedAmount}\n`);
+  devLog(`✅ Amount extracted: ${extractedAmount}\n`);
 
   // Compare extracted amount with expected
   const difference = Math.abs(extractedAmount - expectedAmount);
   const percentDiff = (difference / expectedAmount) * 100;
 
-  console.log('Amount Comparison:');
-  console.log(`  Expected: ${expectedAmount}`);
-  console.log(`  Extracted: ${extractedAmount}`);
-  console.log(`  Difference: ${difference} (${percentDiff.toFixed(1)}%)`);
-  console.log('');
+  devLog('Amount Comparison:');
+  devLog(`  Expected: ${expectedAmount}`);
+  devLog(`  Extracted: ${extractedAmount}`);
+  devLog(`  Difference: ${difference} (${percentDiff.toFixed(1)}%)`);
+  devLog('');
 
   // Accept if exact match or within tiny tolerance (50 rupiah for rounding)
   if (difference === 0) {
-    console.log(`✅ EXACT MATCH!`);
-    console.log('=== PAYMENT VALIDATION END (SUCCESS) ===\n');
+    devLog(`✅ EXACT MATCH!`);
+    devLog('=== PAYMENT VALIDATION END (SUCCESS) ===\n');
     return true;
   }
   
   if (difference <= 50) {
-    console.log(`✅ MATCH (within 50 rupiah rounding tolerance)`);
-    console.log('=== PAYMENT VALIDATION END (SUCCESS) ===\n');
+    devLog(`✅ MATCH (within 50 rupiah rounding tolerance)`);
+    devLog('=== PAYMENT VALIDATION END (SUCCESS) ===\n');
     return true;
   }
 
-  console.warn(`❌ FAILED: Amount mismatch exceeds tolerance`);
-  console.warn(`  Expected: ${expectedAmount}, Got: ${extractedAmount}, Diff: ${difference}`);
-  console.log('=== PAYMENT VALIDATION END (FAILED) ===\n');
+  devWarn(`❌ FAILED: Amount mismatch exceeds tolerance`);
+  devWarn(`  Expected: ${expectedAmount}, Got: ${extractedAmount}, Diff: ${difference}`);
+  devLog('=== PAYMENT VALIDATION END (FAILED) ===\n');
   return false;
 }
 
@@ -385,29 +386,29 @@ export function validatePayment(text: string, expectedAmount: number): boolean {
  */
 export async function verifyPayment(file: File, expectedAmount: number): Promise<PaymentVerificationResult> {
   try {
-    console.log('🔍 Starting payment verification...');
-    console.log('File:', file.name, file.size, 'bytes');
-    console.log('Expected amount:', expectedAmount);
+    devLog('🔍 Starting payment verification...');
+    devLog('File:', file.name, file.size, 'bytes');
+    devLog('Expected amount:', expectedAmount);
 
     // Step 1: Extract text from local file WITHOUT uploading to Cloudinary yet
-    console.log('🔤 Extracting text with OCR (local processing)...');
+    devLog('🔤 Extracting text with OCR (local processing)...');
     const { text, confidence } = await extractTextFromImage(file);
-    console.log('📝 Extracted text:', text);
-    console.log('📊 OCR Confidence:', confidence);
+    devLog('📝 Extracted text:', text);
+    devLog('📊 OCR Confidence:', confidence);
 
     // Step 2: Validate payment
-    console.log('✔️ Validating payment...');
+    devLog('✔️ Validating payment...');
     const isValid = validatePayment(text, expectedAmount);
-    console.log('Validation result:', isValid ? '✅ VALID' : '❌ INVALID');
+    devLog('Validation result:', isValid ? '✅ VALID' : '❌ INVALID');
 
     // Step 3: Only upload to Cloudinary if payment is valid
     let cloudinaryUrl = '';
     if (isValid) {
-      console.log('📤 Payment valid! Uploading to Cloudinary...');
+      devLog('📤 Payment valid! Uploading to Cloudinary...');
       cloudinaryUrl = await uploadToCloudinary(file);
-      console.log('✅ Cloudinary URL:', cloudinaryUrl);
+      devLog('✅ Cloudinary URL:', cloudinaryUrl);
     } else {
-      console.log('⏭️ Payment invalid - skipping Cloudinary upload to save storage');
+      devLog('⏭️ Payment invalid - skipping Cloudinary upload to save storage');
     }
 
     return {
@@ -417,7 +418,7 @@ export async function verifyPayment(file: File, expectedAmount: number): Promise
       confidence
     };
   } catch (error) {
-    console.error('❌ Payment verification failed:', error);
+    devError('❌ Payment verification failed:', error);
     throw error;
   }
 }
@@ -435,7 +436,7 @@ async function checkNetworkConnectivity(): Promise<boolean> {
     });
     return true;
   } catch (error) {
-    console.warn('Network connectivity check failed:', error);
+    devWarn('Network connectivity check failed:', error);
     return false;
   }
 }
@@ -444,12 +445,12 @@ async function checkNetworkConnectivity(): Promise<boolean> {
  * Send payment confirmation to Google Apps Script with enhanced retry mechanism
  */
 export async function confirmPayment(noOrder: string, cloudinaryUrl: string, statusPaid: boolean): Promise<void> {
-  console.log('💾 Sending payment confirmation:', { noOrder, cloudinaryUrl, statusPaid });
+  devLog('💾 Sending payment confirmation:', { noOrder, cloudinaryUrl, statusPaid });
   
   // VALIDATION: Check if noOrder is valid before sending
   if (!noOrder || String(noOrder).trim() === '') {
-    console.error('❌ CRITICAL: Cannot confirm payment - noOrder is empty or invalid');
-    console.error('   noOrder:', noOrder);
+    devError('❌ CRITICAL: Cannot confirm payment - noOrder is empty or invalid');
+    devError('   noOrder:', noOrder);
     throw new Error('Nomor pesanan tidak valid atau kosong. Tidak dapat mengkonfirmasi pembayaran.');
   }
   
@@ -464,7 +465,7 @@ export async function confirmPayment(noOrder: string, cloudinaryUrl: string, sta
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`🔄 Payment confirmation attempt ${attempt}/${maxRetries} for order: ${noOrder}`);
+      devLog(`🔄 Payment confirmation attempt ${attempt}/${maxRetries} for order: ${noOrder}`);
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 45000); // Increased timeout to 45 seconds
@@ -487,29 +488,29 @@ export async function confirmPayment(noOrder: string, cloudinaryUrl: string, sta
       });
 
       clearTimeout(timeoutId);
-      console.log('📡 Response status:', response.status);
-      console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
+      devLog('📡 Response status:', response.status);
+      devLog('📡 Response headers:', Object.fromEntries(response.headers.entries()));
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ Response error:', errorText);
+        devError('❌ Response error:', errorText);
         throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
       }
 
       const result = await response.json();
-      console.log('✅ Payment confirmation result:', result);
+      devLog('✅ Payment confirmation result:', result);
       
       if (!result.success) {
         throw new Error(result.message || result.error || 'Payment confirmation failed');
       }
       
       // Success - exit retry loop
-      console.log('✅ Payment confirmation successful for order:', noOrder);
+      devLog('✅ Payment confirmation successful for order:', noOrder);
       return;
       
     } catch (error) {
       lastError = error as Error;
-      console.error(`❌ Payment confirmation attempt ${attempt} failed:`, error);
+      devError(`❌ Payment confirmation attempt ${attempt} failed:`, error);
       
       // If this is the last attempt, throw the error
       if (attempt === maxRetries) {
@@ -527,15 +528,15 @@ export async function confirmPayment(noOrder: string, cloudinaryUrl: string, sta
       // Progressive delay with longer waits for network errors
       const baseDelay = isNetworkError ? 2000 : 1000;
       const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), 10000);
-      console.log(`⏳ Retrying in ${delay}ms...`);
+      devLog(`⏳ Retrying in ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
   
   // If we get here, all retries failed
   const errorMessage = lastError?.message || 'Unknown error';
-  console.error('❌ All payment confirmation attempts failed for order:', noOrder);
-  console.error('   Error:', errorMessage);
+  devError('❌ All payment confirmation attempts failed for order:', noOrder);
+  devError('   Error:', errorMessage);
   
   // Provide user-friendly error messages based on error type
   if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {

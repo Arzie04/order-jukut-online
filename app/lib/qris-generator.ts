@@ -1,3 +1,5 @@
+import { devError } from './logger';
+
 /**
  * QRIS Dynamic Generator with Nominal Injection
  * Generate QRIS yang valid dengan nominal dinamis dan CRC yang dihitung ulang
@@ -58,7 +60,7 @@ export function generateDynamicQris(amount: number): string {
     // Return QRIS lengkap dengan CRC yang benar
     return qris + crc;
   } catch (error) {
-    console.error('Error generating dynamic QRIS:', error);
+    devError('Error generating dynamic QRIS:', error);
     return '';
   }
 }

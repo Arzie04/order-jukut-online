@@ -5,6 +5,7 @@ import OrderingPage from './components/OrderingPage';
 import LoadingScreen from './components/LoadingScreen';
 import { API_URLS } from './lib/api-config';
 import { DEVELOPER_MODE, CLOSED_PAGE_STATUS } from './lib/settings';
+import { devError, devLog, devWarn } from './lib/logger';
 import { StockItem, OrderItem, AlertMessage } from './components/OrderingPage'; // Import interfaces
 
 const priceMap: { [key: string]: number } = {
@@ -21,6 +22,35 @@ const itemCodeToNameMap: { [key: string]: string } = {
   'TP': 'TEMPE', 'TH': 'TAHU', 'JK': 'JUKUT', 'TG': 'TERONG', 'KG': 'KOL', 'SI': 'SAMBAL IJO',
   'SB': 'SAMBAL BAWANG', 'NDJ': 'NASI DAUN JERUK', 'NSP': 'NASI PUTIH', 'ATI': 'ATI AMPELA', 'KL': 'KULIT', 
 };
+
+const REGULAR_PACKAGE_DEPENDENCIES = ['NASI PUTIH', 'JUKUT', 'SAMBAL IJO'] as const;
+const NDJ_PACKAGE_DEPENDENCIES = ['NASI DAUN JERUK', 'JUKUT', 'SAMBAL IJO'] as const;
+
+type PackageVariant = 'SI' | 'SB';
+
+function parseOrderCode(code: string) {
+  const parts = code.trim().split(/\s+/);
+  const isPackage = parts[0] === 'PKT' && parts.length >= 2;
+  const hasSbVariant = isPackage && parts[parts.length - 1] === 'SB';
+  const baseParts = hasSbVariant ? parts.slice(0, -1) : parts;
+
+  return {
+    isPackage,
+    baseCode: baseParts.join(' '),
+    itemCode: baseParts[1] || '',
+    isNdj: baseParts.includes('NDJ'),
+    variant: hasSbVariant ? 'SB' as PackageVariant : 'SI' as PackageVariant,
+  };
+}
+
+function getItemPrice(code: string) {
+  if (priceMap[code] != null) {
+    return priceMap[code];
+  }
+
+  const { baseCode } = parseOrderCode(code);
+  return priceMap[baseCode] || 0;
+}
 
 export default function Home() {
   // --- State previously in page.tsx ---
@@ -82,9 +112,9 @@ export default function Home() {
         setWhatsappUrl(data.whatsappUrl || '');
         setBaseMessage(data.baseMessage || '');
         setPaymentProofUrl(data.paymentProofUrl || '');
-        console.log('Restored order data from localStorage');
+        devLog('Restored order data from localStorage');
       } catch (e) {
-        console.error('Failed to restore order data:', e);
+        devError('Failed to restore order data:', e);
       }
     }
   }, []);
@@ -116,7 +146,7 @@ export default function Home() {
   const handleAddOrUpdateItem = (code: string, newQty?: number) => {
     setOrderItems(currentItems => {
       const existingItemIndex = currentItems.findIndex(item => item.code === code);
-      let updatedItems = [...currentItems];
+      const updatedItems = [...currentItems];
 
       if (existingItemIndex > -1) {
         if (newQty !== undefined && newQty > 0) {
@@ -135,6 +165,51 @@ export default function Home() {
     });
   };
 
+  const handleMovePackageVariant = (code: string, targetVariant: PackageVariant) => {
+    setOrderItems(currentItems => {
+      const sourceIndex = currentItems.findIndex(item => item.code === code);
+      if (sourceIndex === -1) {
+        return currentItems;
+      }
+
+      const parsedCode = parseOrderCode(code);
+      if (!parsedCode.isPackage || parsedCode.variant === targetVariant) {
+        return currentItems;
+      }
+
+      const updatedItems = [...currentItems];
+      const sourceItem = updatedItems[sourceIndex];
+      const targetCode = targetVariant === 'SB' ? `${parsedCode.baseCode} SB` : parsedCode.baseCode;
+
+      if (sourceItem.qty <= 1) {
+        updatedItems.splice(sourceIndex, 1);
+      } else {
+        updatedItems[sourceIndex] = {
+          ...sourceItem,
+          qty: sourceItem.qty - 1,
+        };
+      }
+
+      const targetIndex = updatedItems.findIndex(item => item.code === targetCode);
+      if (targetIndex > -1) {
+        updatedItems[targetIndex] = {
+          ...updatedItems[targetIndex],
+          qty: updatedItems[targetIndex].qty + 1,
+        };
+      } else {
+        updatedItems.splice(sourceIndex + 1, 0, {
+          code: targetCode,
+          qty: 1,
+        });
+      }
+
+      const newOrderString = updatedItems.map(item => `${item.code} ${item.qty}`).join('\\n');
+      setOrder(newOrderString);
+      setShowCalcResult(false);
+      return updatedItems.filter(item => item.qty > 0);
+    });
+  };
+
   const calculateTotal = useCallback(() => {
     if (orderItems.length === 0) {
       setShowCalcResult(false); setCalcDetails(''); return false;
@@ -142,7 +217,7 @@ export default function Home() {
     let totalAmount = 0;
     const details: string[] = [];
     orderItems.forEach(({ code, qty }) => {
-      const price = priceMap[code];
+      const price = getItemPrice(code);
       const lineTotal = (price || 0) * qty;
       totalAmount += lineTotal;
       details.push(`${code} ${qty} = ${lineTotal.toLocaleString('id-ID')}`);
@@ -154,43 +229,43 @@ export default function Home() {
     return true;
   }, [orderItems]);
   
+  const getConsumedStockNames = (code: string): string[] => {
+    const parsedCode = parseOrderCode(code);
+    const parts = parsedCode.baseCode.split(' ');
+    const prefix = parts[0];
+    const itemCode = parsedCode.itemCode;
+    const consumes: string[] = [];
+
+    if (itemCode === 'TT') {
+      consumes.push('TAHU', 'TEMPE');
+    } else if (itemCodeToNameMap[itemCode]) {
+      consumes.push(itemCodeToNameMap[itemCode]);
+    }
+
+    if (prefix === 'PKT') {
+      const packageDependencies = parsedCode.isNdj
+        ? NDJ_PACKAGE_DEPENDENCIES.filter(item => item !== 'SAMBAL IJO')
+        : REGULAR_PACKAGE_DEPENDENCIES.filter(item => item !== 'SAMBAL IJO');
+
+      consumes.push(...packageDependencies);
+      consumes.push(parsedCode.variant === 'SB' ? 'SAMBAL BAWANG' : 'SAMBAL IJO');
+    }
+
+    return consumes;
+  };
+
   const getOrderQuantities = () => {
     const quantities: { [key: string]: number } = {};
-    for (const item of orderItems) {
-      const parts = item.code.split(' ');
-      const itemCode = parts[1];
-      
-      if (itemCode === 'TT') {
-        quantities['TAHU'] = (quantities['TAHU'] || 0) + item.qty;
-        quantities['TEMPE'] = (quantities['TEMPE'] || 0) + item.qty;
-      } else if (itemCodeToNameMap[itemCode]) {
-        quantities[itemCodeToNameMap[itemCode]] = (quantities[itemCodeToNameMap[itemCode]] || 0) + item.qty;
-      }
+    const addQuantity = (itemName: string, qty: number) => {
+      quantities[itemName] = (quantities[itemName] || 0) + qty;
+    };
 
-      if (parts.length > 2 && parts[2] === 'NDJ') {
-        quantities['NASI DAUN JERUK'] = (quantities['NASI DAUN JERUK'] || 0) + item.qty;
+    for (const item of orderItems) {
+      for (const itemName of getConsumedStockNames(item.code)) {
+        addQuantity(itemName, item.qty);
       }
     }
     return quantities;
-  };
-
-  const getNextOrderId = async (): Promise<string> => {
-    try {
-      const res = await fetch(API_URLS.GET_NEXT_ORDER_ID);
-      const data = await res.json();
-
-      if (data.no_order) {
-        console.log(`✅ Order ID generated: ${data.no_order}`);
-        return data.no_order;
-      }
-
-      console.warn('Unexpected response from getNextOrderId:', data);
-      return `ORD-ERR-${Date.now().toString().slice(-5)}`;
-
-    } catch (e) {
-      console.error('unable to fetch order ID', e);
-      return `ORD-ERR-${Date.now().toString().slice(-5)}`;
-    }
   };
 
   const handleOpenConfirm = (): boolean => {
@@ -218,20 +293,7 @@ export default function Home() {
 
     if (insufficientStockNames.size > 0) {
       const newOrderItems = orderItems.filter(item => {
-        const parts = item.code.split(' ');
-        const suffix = parts[1];
-        let consumes: string[] = [];
-        
-        if (suffix === 'TT') {
-          consumes = ['TAHU', 'TEMPE'];
-        } else if (itemCodeToNameMap[suffix]) {
-          consumes = [itemCodeToNameMap[suffix]];
-        }
-
-        // Cek jika menggunakan Nasi Daun Jeruk
-        if (parts.length > 2 && parts[2] === 'NDJ') {
-          consumes.push('NASI DAUN JERUK');
-        }
+        const consumes = getConsumedStockNames(item.code);
 
         // Hapus item jika salah satu bahan bakunya tidak cukup
         return !consumes.some(name => insufficientStockNames.has(name));
@@ -264,7 +326,7 @@ export default function Home() {
     try {
       // Step 1: Create order on backend so number generation and insert
       // happen in one locked operation.
-      console.log('[ORDER] Creating order via insert-order API...');
+      devLog('[ORDER] Creating order via insert-order API...');
       
       const orderInsertResponse = await fetch(API_URLS.INSERT_ORDER, {
         method: 'POST',
@@ -286,7 +348,7 @@ export default function Home() {
         throw new Error(orderInsertResult?.error || 'Gagal membuat pesanan');
       }
 
-      console.log('[ORDER] Order created with number:', orderNumber);
+      devLog('[ORDER] Order created with number:', orderNumber);
       setCurrentOrderNumber(orderNumber);
 
       // Step 2: Order sudah tersimpan. Lanjut background stock update.
@@ -364,7 +426,7 @@ export default function Home() {
         quantity: qty
       }));
 
-      console.log('[STOCK] Sending stock updates...', JSON.stringify(stockUpdates));
+      devLog('[STOCK] Sending stock updates...', JSON.stringify(stockUpdates));
 
       if (stockUpdates.length > 0) {
         fetch(API_URLS.UPDATE_STOCK, {
@@ -374,7 +436,7 @@ export default function Home() {
             'Content-Type': 'text/plain',
           },
           body: JSON.stringify({ updates: stockUpdates })
-        }).catch(e => console.error('Gagal update stok:', e));
+        }).catch(e => devError('Gagal update stok:', e));
       }
 
       // Step 4: Construct the final WhatsApp message
@@ -382,7 +444,7 @@ export default function Home() {
       const timeString = `${('0' + now.getHours()).slice(-2)}:${('0' + now.getMinutes()).slice(-2)}:${('0' + now.getSeconds()).slice(-2)}`;
 
       const orderDetailsString = orderItems.map(item => {
-          const price = priceMap[item.code] || 0;
+          const price = getItemPrice(item.code);
           const lineTotal = price * item.qty;
           return `${item.code} ${item.qty} = ${lineTotal.toLocaleString('id-ID')}`;
       }).join('\n');
@@ -420,7 +482,7 @@ export default function Home() {
       setShowCalcResult(false);
 
     } catch (error: any) {
-      console.error('[ORDER] Submission Error:', error);
+      devError('[ORDER] Submission Error:', error);
       setAlert({
         type: 'danger',
         message: `❌ Terjadi kesalahan saat membuat pesanan: ${error.message}\n\nSilakan coba lagi atau hubungi admin.`
@@ -473,7 +535,7 @@ export default function Home() {
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`Fetching config/orders attempt ${attempt}/${maxRetries}`);
+        devLog(`Fetching config/orders attempt ${attempt}/${maxRetries}`);
         
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000);
@@ -504,7 +566,7 @@ export default function Home() {
         const configData = await configRes.json();
         const ordersData = await ordersRes.json();
         
-        console.log('Config/orders data fetched successfully');
+        devLog('Config/orders data fetched successfully');
 
         // Process config
         const jamBuka = configData.jam_buka?.trim() || null;
@@ -531,10 +593,10 @@ export default function Home() {
         
       } catch (error) {
         lastError = error as Error;
-        console.error(`Config/orders fetch attempt ${attempt} failed:`, error);
+        devError(`Config/orders fetch attempt ${attempt} failed:`, error);
         
         if (attempt === maxRetries) {
-          console.error('All config/orders fetch attempts failed:', lastError?.message);
+          devError('All config/orders fetch attempts failed:', lastError?.message);
           
           // Provide more specific error messages based on error type
           if (lastError?.message?.includes('403')) {
@@ -557,7 +619,7 @@ export default function Home() {
         
         // Wait before retrying
         const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-        console.log(`Retrying config/orders fetch in ${delay}ms...`);
+        devLog(`Retrying config/orders fetch in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -569,7 +631,7 @@ export default function Home() {
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`Fetching stock attempt ${attempt}/${maxRetries}`);
+        devLog(`Fetching stock attempt ${attempt}/${maxRetries}`);
         
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
@@ -590,7 +652,7 @@ export default function Home() {
         }
         
         const data = await res.json();
-        console.log('Stock data fetched successfully:', data);
+        devLog('Stock data fetched successfully:', data);
         
         if (Array.isArray(data)) {
           setStock(data);
@@ -601,21 +663,21 @@ export default function Home() {
         
       } catch (error) {
         lastError = error as Error;
-        console.error(`Stock fetch attempt ${attempt} failed:`, error);
+        devError(`Stock fetch attempt ${attempt} failed:`, error);
         
         // If this is the last attempt, log the final error and set fallback stock
         if (attempt === maxRetries) {
-          console.error('All stock fetch attempts failed:', lastError?.message);
+          devError('All stock fetch attempts failed:', lastError?.message);
           
           // Provide more specific error handling for stock fetch
           if (lastError?.message?.includes('403')) {
-            console.warn('Stock API access forbidden - using empty stock data');
+            devWarn('Stock API access forbidden - using empty stock data');
           } else if (lastError?.message?.includes('404')) {
-            console.warn('Stock API not found - using empty stock data');
+            devWarn('Stock API not found - using empty stock data');
           } else if (lastError?.name === 'AbortError') {
-            console.warn('Stock fetch timeout - using empty stock data');
+            devWarn('Stock fetch timeout - using empty stock data');
           } else if (lastError?.message?.includes('NetworkError') || lastError?.message?.includes('fetch')) {
-            console.warn('Network error fetching stock - using empty stock data');
+            devWarn('Network error fetching stock - using empty stock data');
           }
           
           // Set empty stock array as fallback to prevent app crash
@@ -625,7 +687,7 @@ export default function Home() {
         
         // Wait before retrying
         const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-        console.log(`Retrying stock fetch in ${delay}ms...`);
+        devLog(`Retrying stock fetch in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -657,7 +719,12 @@ export default function Home() {
     return () => clearInterval(intervalId);
   }, [fetchStock]);
 
-  const isNdjOutOfStock = stock.find(item => item.nama_item === 'Nasi Daun Jeruk')?.stok === 0;
+  const getStockAmount = (itemName: string): number | undefined => {
+    return stock.find(item => item.nama_item.toUpperCase() === itemName.toUpperCase())?.stok;
+  };
+
+  const isPackageOutOfStock = REGULAR_PACKAGE_DEPENDENCIES.some(itemName => getStockAmount(itemName) === 0);
+  const isNdjOutOfStock = NDJ_PACKAGE_DEPENDENCIES.some(itemName => getStockAmount(itemName) === 0);
 
   return (
     <>
@@ -683,11 +750,13 @@ export default function Home() {
           handleOpenConfirm={handleOpenConfirm}
           handleModalSubmit={handleModalSubmit}
           handleAddOrUpdateItem={handleAddOrUpdateItem}
+          handleMovePackageVariant={handleMovePackageVariant}
           isSubmitting={isSubmitting}
           whatsappUrl={whatsappUrl}
           whatsappMessage={whatsappMessage}
           baseMessage={baseMessage}
           priceMap={priceMap}
+          isPackageOutOfStock={isPackageOutOfStock}
           isNdjOutOfStock={isNdjOutOfStock}
           noOrder={currentOrderNumber}
           currentOrderTotal={currentOrderTotal}
@@ -703,10 +772,10 @@ export default function Home() {
               
               setWhatsappMessage(finalMessage);
               setWhatsappUrl(waUrl);
-              console.log('Payment confirmed with proof:', cloudinaryUrl);
-              console.log('Payment proof link:', paymentProofLink);
+              devLog('Payment confirmed with proof:', cloudinaryUrl);
+              devLog('Payment proof link:', paymentProofLink);
             } else {
-              console.log('Payment confirmed for order:', currentOrderNumber);
+              devLog('Payment confirmed for order:', currentOrderNumber);
             }
           }}
         />

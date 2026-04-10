@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Image from 'next/image';
 import { CLOSED_PAGE_STATUS, DEVELOPER_MODE } from '../lib/settings';
+import { devError } from '../lib/logger';
 
 const ClosedPage = () => {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -25,7 +26,7 @@ const ClosedPage = () => {
       audio.muted = false;
       audio.volume = 0; // Start from 0 for fade in effect
       audio.currentTime = 0;
-      audio.play().catch(error => console.error("Audio play failed:", error));
+      audio.play().catch(error => devError("Audio play failed:", error));
 
       if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
       fadeIntervalRef.current = setInterval(() => {
