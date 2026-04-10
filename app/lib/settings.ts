@@ -17,7 +17,7 @@ export const CLOSED_PAGE_STATUS: 'on' | 'off' = 'on';
 
 // 3. GOOGLE APPS SCRIPT URL
 //    URL untuk mengakses Google Apps Script (deploy sebagai web app)
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxEVHfzLO5ghRZg-f5A2KsYROBALRqTcAPQQ9nxX2tmU1KEaZWisoYyvJA19RPRu8Kf/exec';
+export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxe5xK7fOwhC2Z4Z3khcjZ5n0N3e_-qsXwigNPeHXyDtFu2aXZqon3aIdI58Aqkciej/exec';
 
 // 4. CLOUDINARY CONFIGURATION
 //    Cloud name untuk upload gambar bukti pembayaran
