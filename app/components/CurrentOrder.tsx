@@ -58,6 +58,7 @@ function parseOrderCode(code: string) {
 
   return {
     isPackage,
+    isNonPackage,
     baseCode: baseParts.join(' '),
     variant: hasSbVariant ? 'SB' as const : 'SI' as const,
   };
@@ -102,7 +103,7 @@ export default function CurrentOrder({ order, onUpdateQty, onMovePackageVariant,
         const parsedCode = parseOrderCode(code);
         const price = getItemPrice(code, priceMap);
         const subtotal = price * qty;
-        const showVariantUI = parsedCode.isPackage || code.startsWith('NP ');
+        const showVariantUI = parsedCode.isPackage || parsedCode.isNonPackage;
         
         return (
           <div key={code} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">

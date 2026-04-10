@@ -40,6 +40,7 @@ function parseOrderCode(code: string) {
 
   return {
     isPackage,
+    isNonPackage,
     baseCode: baseParts.join(' '),
     itemCode: baseParts[1] || '',
     isNdj: baseParts.includes('NDJ'),
@@ -177,7 +178,7 @@ export default function Home() {
       }
 
       const parsedCode = parseOrderCode(code);
-      if (!parsedCode.isPackage || parsedCode.variant === targetVariant) {
+      if ((!parsedCode.isPackage && !parsedCode.isNonPackage) || parsedCode.variant === targetVariant) {
         return currentItems;
       }
 
