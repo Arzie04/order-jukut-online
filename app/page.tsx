@@ -285,8 +285,37 @@ export default function Home() {
       // Step 2: Submit form data to Google Forms (Silent - no new tab, no-cors mode)
       console.log('[FORM] Submitting order to Google Forms (silent submission)...');
       
-      const formData = new FormData();
+      try {
+        console.log('[FORM] Sending request to server-side Google Form proxy...');
+        const formResponse = await fetch(API_URLS.SUBMIT_GOOGLE_FORM, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            nama: name,
+            pesanan: orderString,
+            note,
+            total,
+            noOrder: orderNumber,
+          })
+        });
+
+        const formResult = await formResponse.json();
+        console.log('[FORM] Proxy response:', formResult);
+
+        if (!formResponse.ok || !formResult.success) {
+          throw new Error(formResult?.error || 'Google Form submission gagal di server');
+        }
+
+        console.log('[FORM] Google Form submission sent via server proxy');
+      } catch (formError) {
+        console.error('[FORM] Google Form submission error:', formError);
+        throw formError;
+      }
       
+      /*
+      // Legacy client-side Google Form submission kept only for reference.
       // Get field entry IDs from environment
       const namaField = process.env.NEXT_PUBLIC_FORM_FIELD_NAMA;
       const pesananField = process.env.NEXT_PUBLIC_FORM_FIELD_PESANAN;
@@ -349,6 +378,7 @@ export default function Home() {
       } finally {
         console.log('[FORM] Data harus sudah masuk ke Google Form responses');
       }
+      */
 
       // Step 3: Update Stock via API (Background Process)
       const quantities = getOrderQuantities();
