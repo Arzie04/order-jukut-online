@@ -19,13 +19,22 @@ export default function ConsoleGate() {
       debug: window.console.debug,
     };
 
+    // Suppress all logs except for critical errors
     window.console.log = noop;
     window.console.warn = noop;
-    window.console.error = noop;
     window.console.info = noop;
     window.console.debug = noop;
+    
+    // Only allow errors with a specific prefix
+    window.console.error = (...args: unknown[]) => {
+      if (args.length > 0 && typeof args[0] === 'string' && args[0].startsWith('CRITICAL:')) {
+        original.error(...args);
+      }
+      // Otherwise, do nothing (noop)
+    };
 
     return () => {
+      // Restore all original console functions on cleanup
       window.console.log = original.log;
       window.console.warn = original.warn;
       window.console.error = original.error;

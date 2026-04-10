@@ -50,8 +50,10 @@ const ITEM_NAMES: Record<string, string> = {
 
 function parseOrderCode(code: string) {
   const parts = code.trim().split(/\s+/);
-  const isPackage = parts[0] === 'PKT' && parts.length >= 2;
-  const hasSbVariant = isPackage && parts[parts.length - 1] === 'SB';
+  const prefix = parts[0];
+  const isPackage = prefix === 'PKT' && parts.length >= 2;
+  const isNonPackage = prefix === 'NP' && parts.length >= 2;
+  const hasSbVariant = (isPackage || isNonPackage) && parts[parts.length - 1] === 'SB';
   const baseParts = hasSbVariant ? parts.slice(0, -1) : parts;
 
   return {
@@ -64,8 +66,10 @@ function parseOrderCode(code: string) {
 function getItemName(code: string) {
   const parsedCode = parseOrderCode(code);
   const baseName = ITEM_NAMES[parsedCode.baseCode] || parsedCode.baseCode;
+  const prefix = code.trim().split(' ')[0];
 
-  if (!parsedCode.isPackage) {
+  // Only show sambal variant for PKT and NP items
+  if (prefix !== 'PKT' && prefix !== 'NP') {
     return baseName;
   }
 
@@ -98,13 +102,14 @@ export default function CurrentOrder({ order, onUpdateQty, onMovePackageVariant,
         const parsedCode = parseOrderCode(code);
         const price = getItemPrice(code, priceMap);
         const subtotal = price * qty;
+        const showVariantUI = parsedCode.isPackage || code.startsWith('NP ');
         
         return (
           <div key={code} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div className="flex-1 pr-2">
                 <div className="font-semibold text-sm text-gray-800">{getItemName(code)}</div>
-                {parsedCode.isPackage && (
+                {showVariantUI && (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
                       parsedCode.variant === 'SB'

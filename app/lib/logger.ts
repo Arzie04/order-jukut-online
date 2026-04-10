@@ -19,3 +19,15 @@ export function devError(...args: unknown[]) {
     console.error(...args);
   }
 }
+
+export function criticalError(...args: unknown[]) {
+  // This function ALWAYS logs, regardless of DEVELOPER_MODE.
+  // It adds a prefix that ConsoleGate can recognize.
+  if (args.length > 0) {
+    const message = `CRITICAL: ${args[0]}`;
+    const otherArgs = args.slice(1);
+    console.error(message, ...otherArgs);
+  } else {
+    console.error('CRITICAL: An unspecified error occurred.');
+  }
+}
