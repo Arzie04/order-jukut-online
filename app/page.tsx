@@ -30,8 +30,12 @@ type PackageVariant = 'SI' | 'SB';
 
 function parseOrderCode(code: string) {
   const parts = code.trim().split(/\s+/);
-  const isPackage = parts[0] === 'PKT' && parts.length >= 2;
-  const hasSbVariant = isPackage && parts[parts.length - 1] === 'SB';
+  const prefix = parts[0];
+  const isPackage = prefix === 'PKT' && parts.length >= 2;
+  const isNonPackage = prefix === 'NP' && parts.length >= 2;
+
+  // A variant can exist if it's a PKT or NP item
+  const hasSbVariant = (isPackage || isNonPackage) && parts[parts.length - 1] === 'SB';
   const baseParts = hasSbVariant ? parts.slice(0, -1) : parts;
 
   return {
@@ -231,8 +235,7 @@ export default function Home() {
   
   const getConsumedStockNames = (code: string): string[] => {
     const parsedCode = parseOrderCode(code);
-    const parts = parsedCode.baseCode.split(' ');
-    const prefix = parts[0];
+    const prefix = code.trim().split(' ')[0];
     const itemCode = parsedCode.itemCode;
     const consumes: string[] = [];
 
@@ -242,13 +245,19 @@ export default function Home() {
       consumes.push(itemCodeToNameMap[itemCode]);
     }
 
+    // For PKT, add rice and jukut.
     if (prefix === 'PKT') {
-      const packageDependencies = parsedCode.isNdj
-        ? NDJ_PACKAGE_DEPENDENCIES.filter(item => item !== 'SAMBAL IJO')
-        : REGULAR_PACKAGE_DEPENDENCIES.filter(item => item !== 'SAMBAL IJO');
+        const rice = parsedCode.isNdj ? 'NASI DAUN JERUK' : 'NASI PUTIH';
+        consumes.push(rice, 'JUKUT');
+    }
+    // For NP, add only jukut.
+    else if (prefix === 'NP') {
+        consumes.push('JUKUT');
+    }
 
-      consumes.push(...packageDependencies);
-      consumes.push(parsedCode.variant === 'SB' ? 'SAMBAL BAWANG' : 'SAMBAL IJO');
+    // For both PKT and NP, add the sambal variant.
+    if (prefix === 'PKT' || prefix === 'NP') {
+        consumes.push(parsedCode.variant === 'SB' ? 'SAMBAL BAWANG' : 'SAMBAL IJO');
     }
 
     return consumes;
