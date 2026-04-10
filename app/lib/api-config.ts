@@ -3,6 +3,20 @@
  * Now using Next.js API proxy to avoid CORS issues
  */
 
+const DEFAULT_GOOGLE_FORM_PREFILLED_URL =
+  'https://docs.google.com/forms/d/e/1FAIpQLSceaYNjewOa6lWgeab7Zo-pkJ7WUBnox9C8DQ3HX9lh8E5IeQ/viewform?usp=pp_url&entry.1756210992=NAMA+DISINI&entry.794602475=PESANAN+DISINI&entry.1229878423=NOTE+DISINI&entry.39066530=TOTAL+PEMBAYARAN+DISINI&entry.137521316=NO+ORDER+DISINI';
+
+interface ParsedGoogleFormConfig {
+  formUrl: string;
+  fields: {
+    NAMA: string;
+    PESANAN: string;
+    NOTE: string;
+    TOTAL: string;
+    NO_ORDER: string;
+  };
+}
+
 function getEnvValue(...keys: string[]): string {
   for (const key of keys) {
     const value = process.env[key];
@@ -14,21 +28,59 @@ function getEnvValue(...keys: string[]): string {
   return '';
 }
 
+function parseGoogleFormConfig(prefilledUrl: string): ParsedGoogleFormConfig {
+  const parsedUrl = new URL(prefilledUrl);
+  const formUrl = `${parsedUrl.origin}${parsedUrl.pathname.replace('/viewform', '/formResponse')}`;
+  const fields: ParsedGoogleFormConfig['fields'] = {
+    NAMA: '',
+    PESANAN: '',
+    NOTE: '',
+    TOTAL: '',
+    NO_ORDER: '',
+  };
+
+  for (const [key, value] of parsedUrl.searchParams.entries()) {
+    if (!key.startsWith('entry.')) {
+      continue;
+    }
+
+    const normalizedValue = value.toUpperCase();
+
+    if (normalizedValue.includes('NAMA')) {
+      fields.NAMA = key;
+    } else if (normalizedValue.includes('PESANAN')) {
+      fields.PESANAN = key;
+    } else if (normalizedValue.includes('NOTE')) {
+      fields.NOTE = key;
+    } else if (normalizedValue.includes('TOTAL')) {
+      fields.TOTAL = key;
+    } else if (normalizedValue.includes('NO ORDER')) {
+      fields.NO_ORDER = key;
+    }
+  }
+
+  return { formUrl, fields };
+}
+
+const DEFAULT_GOOGLE_FORM_CONFIG = parseGoogleFormConfig(DEFAULT_GOOGLE_FORM_PREFILLED_URL);
+
 // Google Apps Script URL - now using environment variable
 export const GOOGLE_APPS_SCRIPT_URL = getEnvValue('APPS_SCRIPT_URL', 'NEXT_PUBLIC_APPS_SCRIPT_URL') ||
   'https://script.google.com/macros/s/AKfycbxe5xK7fOwhC2Z4Z3khcjZ5n0N3e_-qsXwigNPeHXyDtFu2aXZqon3aIdI58Aqkciej/exec';
 
 // Google Form URL untuk order submission
 // Format: https://docs.google.com/forms/d/{FORM_ID}/formResponse
-export const GOOGLE_FORM_URL = getEnvValue('GOOGLE_FORM_URL', 'NEXT_PUBLIC_GOOGLE_FORM_URL');
+export const GOOGLE_FORM_URL =
+  getEnvValue('GOOGLE_FORM_URL', 'NEXT_PUBLIC_GOOGLE_FORM_URL') ||
+  DEFAULT_GOOGLE_FORM_CONFIG.formUrl;
 
 // Google Form field entry IDs - these map to actual form fields
 export const GOOGLE_FORM_FIELDS = {
-  NAMA: getEnvValue('FORM_FIELD_NAMA', 'NEXT_PUBLIC_FORM_FIELD_NAMA'), // Customer name
-  PESANAN: getEnvValue('FORM_FIELD_PESANAN', 'NEXT_PUBLIC_FORM_FIELD_PESANAN'), // Order details
-  NOTE: getEnvValue('FORM_FIELD_NOTE', 'NEXT_PUBLIC_FORM_FIELD_NOTE'), // Notes
-  TOTAL: getEnvValue('FORM_FIELD_TOTAL', 'NEXT_PUBLIC_FORM_FIELD_TOTAL'), // Total amount
-  NO_ORDER: getEnvValue('FORM_FIELD_NO_ORDER', 'NEXT_PUBLIC_FORM_FIELD_NO_ORDER') // Order number
+  NAMA: getEnvValue('FORM_FIELD_NAMA', 'NEXT_PUBLIC_FORM_FIELD_NAMA') || DEFAULT_GOOGLE_FORM_CONFIG.fields.NAMA, // Customer name
+  PESANAN: getEnvValue('FORM_FIELD_PESANAN', 'NEXT_PUBLIC_FORM_FIELD_PESANAN') || DEFAULT_GOOGLE_FORM_CONFIG.fields.PESANAN, // Order details
+  NOTE: getEnvValue('FORM_FIELD_NOTE', 'NEXT_PUBLIC_FORM_FIELD_NOTE') || DEFAULT_GOOGLE_FORM_CONFIG.fields.NOTE, // Notes
+  TOTAL: getEnvValue('FORM_FIELD_TOTAL', 'NEXT_PUBLIC_FORM_FIELD_TOTAL') || DEFAULT_GOOGLE_FORM_CONFIG.fields.TOTAL, // Total amount
+  NO_ORDER: getEnvValue('FORM_FIELD_NO_ORDER', 'NEXT_PUBLIC_FORM_FIELD_NO_ORDER') || DEFAULT_GOOGLE_FORM_CONFIG.fields.NO_ORDER // Order number
 };
 
 // Proxy endpoints - frontend calls these instead of Google Apps Script directly
