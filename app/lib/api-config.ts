@@ -3,20 +3,21 @@
  * Now using Next.js API proxy to avoid CORS issues
  */
 
-// Direct Google Apps Script URL (for reference, not used in frontend)
-const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxe5xK7fOwhC2Z4Z3khcjZ5n0N3e_-qsXwigNPeHXyDtFu2aXZqon3aIdI58Aqkciej/exec';
+// Google Apps Script URL - now using environment variable
+export const GOOGLE_APPS_SCRIPT_URL = process.env.NEXT_PUBLIC_APPS_SCRIPT_URL || 
+  'https://script.google.com/macros/s/AKfycbxe5xK7fOwhC2Z4Z3khcjZ5n0N3e_-qsXwigNPeHXyDtFu2aXZqon3aIdI58Aqkciej/exec';
 
 // Google Form URL untuk order submission
 // Format: https://docs.google.com/forms/d/{FORM_ID}/formResponse
-const GOOGLE_FORM_URL = process.env.NEXT_PUBLIC_GOOGLE_FORM_URL || 'https://docs.google.com/forms/d/e/1FAIpQLSfDT_7FvP5ZqK5qK5qK5qK5qK5qK5qK5qK/formResponse'; // TODO: Set real Form ID in .env
+export const GOOGLE_FORM_URL = process.env.NEXT_PUBLIC_GOOGLE_FORM_URL || '';
 
 // Google Form field entry IDs - these map to actual form fields
 export const GOOGLE_FORM_FIELDS = {
-  NAMA: process.env.NEXT_PUBLIC_FORM_FIELD_NAMA || 'entry.1234567890',        // Customer name
-  PESANAN: process.env.NEXT_PUBLIC_FORM_FIELD_PESANAN || 'entry.0987654321',  // Order details
-  NOTE: process.env.NEXT_PUBLIC_FORM_FIELD_NOTE || 'entry.1111111111',        // Notes
-  TOTAL: process.env.NEXT_PUBLIC_FORM_FIELD_TOTAL || 'entry.2222222222',      // Total amount
-  NO_ORDER: process.env.NEXT_PUBLIC_FORM_FIELD_NO_ORDER || 'entry.3333333333' // Order number
+  NAMA: process.env.NEXT_PUBLIC_FORM_FIELD_NAMA || '',        // Customer name
+  PESANAN: process.env.NEXT_PUBLIC_FORM_FIELD_PESANAN || '',  // Order details
+  NOTE: process.env.NEXT_PUBLIC_FORM_FIELD_NOTE || '',        // Notes
+  TOTAL: process.env.NEXT_PUBLIC_FORM_FIELD_TOTAL || '',      // Total amount
+  NO_ORDER: process.env.NEXT_PUBLIC_FORM_FIELD_NO_ORDER || '' // Order number
 };
 
 // Proxy endpoints - frontend calls these instead of Google Apps Script directly
