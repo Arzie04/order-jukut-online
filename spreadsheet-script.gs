@@ -506,24 +506,29 @@ function deleteOrder(noOrder) {
    ========================= */
 function insertNewOrder(body) {
   try {
-    console.log('📝 Processing INSERT_ORDER');
-    console.log('   Data received:', JSON.stringify(body));
+    console.log('=== START insertNewOrder ===');
+    console.log('Received data:', JSON.stringify(body));
     
     // VALIDATION: Check required fields
     const nama = String(body.nama || '').trim();
     const pesanan = String(body.pesanan || '').trim();
     const total = body.total;
     
+    console.log('Validation:');
+    console.log('  nama: ' + (nama ? 'OK (' + nama + ')' : 'EMPTY'));
+    console.log('  pesanan: ' + (pesanan ? 'OK (length:' + pesanan.length + ')' : 'EMPTY'));
+    console.log('  total: ' + (total ? 'OK (' + total + ')' : 'EMPTY'));
+    
     if (!nama) {
-      console.error('❌ VALIDATION FAILED: nama is empty');
+      console.error('VALIDATION FAILED: nama is empty');
       return jsonOutput({ 
         success: false, 
-        error: "Nama pelanggan tidak boleh kosong"
+        error: "Nama tidak boleh kosong"
       });
     }
     
     if (!pesanan) {
-      console.error('❌ VALIDATION FAILED: pesanan is empty');
+      console.error('VALIDATION FAILED: pesanan is empty');
       return jsonOutput({ 
         success: false, 
         error: "Pesanan tidak boleh kosong"
@@ -531,7 +536,7 @@ function insertNewOrder(body) {
     }
     
     if (total == null || total <= 0) {
-      console.error('❌ VALIDATION FAILED: total invalid');
+      console.error('VALIDATION FAILED: total invalid - ' + total);
       return jsonOutput({ 
         success: false, 
         error: "Total harus lebih dari 0"
@@ -539,20 +544,20 @@ function insertNewOrder(body) {
     }
     
     // Get next order ID
-    console.log('📘 Getting next order ID...');
+    console.log('Getting next order ID...');
     const nextOrderResponse = getNextOrderIdApi();
     const nextOrderData = JSON.parse(nextOrderResponse.getContent());
     const noOrder = nextOrderData.no_order;
     
+    console.log('Generated order ID: ' + noOrder);
+    
     if (!noOrder) {
-      console.error('❌ Failed to generate order ID');
+      console.error('FAILED: No order ID generated');
       return jsonOutput({ 
         success: false, 
         error: "Gagal generate nomor pesanan"
       });
     }
-    
-    console.log(`✅ Generated order ID: ${noOrder}`);
     
     // Get sheet
     const sheet = SpreadsheetApp
@@ -560,12 +565,14 @@ function insertNewOrder(body) {
       .getSheetByName("Form Responses 1");
     
     if (!sheet) {
-      console.error('❌ Sheet "Form Responses 1" not found');
+      console.error('FAILED: Sheet "Form Responses 1" not found');
       return jsonOutput({ 
         success: false, 
         error: "Sheet tidak ditemukan" 
       });
     }
+    
+    console.log('Sheet found. Current row count: ' + sheet.getLastRow());
     
     // Prepare new row data
     const nowWIB = getNowInWIB();
@@ -578,17 +585,23 @@ function insertNewOrder(body) {
       pesanan,          // Column C: pesanan
       note,             // Column D: note
       total,            // Column E: total
-      noOrder,          // Column F: no_order (STATIC!)
+      noOrder,          // Column F: no_order
       false,            // Column G: paid
       '',               // Column H: empty
       status,           // Column I: status
       ''                // Column J: bukti_pembayaran
     ];
     
-    console.log('📋 Appending new row:', JSON.stringify(newRow));
+    console.log('Appending row with data:');
+    console.log('  Waktu: ' + nowWIB);
+    console.log('  Nama: ' + nama);
+    console.log('  Pesanan: ' + pesanan.substring(0, 50) + '...');
+    console.log('  Total: ' + total);
+    console.log('  No Order: ' + noOrder);
+    
     sheet.appendRow(newRow);
     
-    console.log('✅ Order inserted successfully at row ' + sheet.getLastRow());
+    console.log('SUCCESS: Row appended. New row count: ' + sheet.getLastRow());
     
     return jsonOutput({
       success: true,
@@ -600,12 +613,14 @@ function insertNewOrder(body) {
     });
     
   } catch (error) {
-    console.error('❌ Error in insertNewOrder:', error.toString());
-    console.error('Stack:', error);
+    console.error('ERROR in insertNewOrder:', error.toString());
+    console.error('Stack trace:', error);
     return jsonOutput({ 
       success: false, 
       error: error.toString()
     });
+  } finally {
+    console.log('=== END insertNewOrder ===\n');
   }
 }
 
@@ -618,17 +633,35 @@ function doPost(e) {
   try {
     lock.waitLock(10000);
   } catch (e) {
-    return ContentService.createTextOutput("Server Busy");
+    console.error('Lock ERROR: Server busy');
+    return jsonOutput({ success: false, error: 'Server Busy' });
   }
 
   try {
-    if (!e || !e.postData) return ContentService.createTextOutput("No Data");
+    console.log('doPost called');
+    if (!e || !e.postData) {
+      console.error('NO DATA: postData is empty');
+      return jsonOutput({ success: false, error: 'No data received' });
+    }
+    
     var content = e.postData.contents;
-    var body = JSON.parse(content);
+    console.log('Raw content (first 200 chars):', content.substring(0, 200));
+    
+    var body;
+    try {
+      body = JSON.parse(content);
+      console.log('JSON parsed OK. Type:', body.type);
+    } catch (parseError) {
+      console.error('JSON PARSE ERROR:', parseError.toString());
+      return jsonOutput({ success: false, error: 'Invalid JSON format' });
+    }
 
     // --- LOGIKA A: INSERT NEW ORDER (BARU) ---
     if (body.type === "INSERT_ORDER") {
-      return insertNewOrder(body);
+      console.log('Processing INSERT_ORDER...');
+      var result = insertNewOrder(body);
+      console.log('INSERT_ORDER completed');
+      return result;
     }
 
     // --- LOGIKA B: KONFIRMASI PEMBAYARAN ---
@@ -770,9 +803,12 @@ function doPost(e) {
       return ContentService.createTextOutput("Success");
     }
 
-    return ContentService.createTextOutput("No matching action found");
+    console.error('NO MATCHING ACTION FOUND. Type was:', body.type);
+    return jsonOutput({ success: false, error: 'Unknown request type: ' + (body.type || 'undefined') });
+    
   } catch (err) {
-    return ContentService.createTextOutput("Error: " + err.toString());
+    console.error('FATAL ERROR in doPost:', err.toString());
+    return jsonOutput({ success: false, error: 'Server Error: ' + err.toString() });
   } finally {
     lock.releaseLock();
   }

@@ -8,7 +8,7 @@
 //    - true  : Toko dianggap SELALU BUKA (bypass jam operasional & limit order).
 //              Halaman '/closed' bisa diakses manual meski statusnya 'off'.
 //    - false : Aplikasi berjalan normal sesuai aturan bisnis.
-export const DEVELOPER_MODE = false;
+export const DEVELOPER_MODE = true;
 
 // 2. STATUS HALAMAN TUTUP (MAINTENANCE / LIBUR PANJANG)
 //    - 'on'  : Halaman /closed AKTIF. Jika jam operasional 00.00, user dilempar ke sini.

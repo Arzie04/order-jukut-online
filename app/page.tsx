@@ -262,54 +262,115 @@ export default function Home() {
     const orderString = orderItems.map(item => `${item.code} ${item.qty}`).join('\n');
 
     try {
-      // Step 1: Insert new order via API (REPLACES Google Form)
-      console.log('[ORDER] Inserting new order via API...');
+      // Step 1: Get next order number from API
+      console.log('[ORDER] Getting next order number...');
       
-      const insertResponse = await fetch('/api/proxy/insert-order', {
-        method: 'POST',
+      const orderNumberResponse = await fetch('/api/proxy/config?api=getNextOrderId', {
+        method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          nama: name,
-          pesanan: orderString,
-          note: note,
-          total: total
-        })
+          'Accept': 'application/json',
+        }
       });
 
-      const insertData = await insertResponse.json();
-      console.log('[ORDER] Insert response:', insertData);
+      const orderNumberData = await orderNumberResponse.json();
+      const orderNumber = orderNumberData.no_order;
 
-      if (!insertData.success) {
-        throw new Error(insertData.error || 'Gagal membuat pesanan');
+      if (!orderNumber) {
+        throw new Error('Gagal generate nomor pesanan');
       }
 
-      const orderNumber = insertData.no_order;
+      console.log('[ORDER] Order number generated:', orderNumber);
       setCurrentOrderNumber(orderNumber);
-      console.log('[ORDER] Order created successfully:', orderNumber);
 
-      // Step 2: Update Stock via API (Background Process)
+      // Step 2: Submit form data to Google Forms (Silent - no new tab, no-cors mode)
+      console.log('[FORM] Submitting order to Google Forms (silent submission)...');
+      
+      const formData = new FormData();
+      
+      // Get field entry IDs from environment
+      const namaField = process.env.NEXT_PUBLIC_FORM_FIELD_NAMA;
+      const pesananField = process.env.NEXT_PUBLIC_FORM_FIELD_PESANAN;
+      const noteField = process.env.NEXT_PUBLIC_FORM_FIELD_NOTE;
+      const totalField = process.env.NEXT_PUBLIC_FORM_FIELD_TOTAL;
+      const noOrderField = process.env.NEXT_PUBLIC_FORM_FIELD_NO_ORDER;
+      
+      console.log('[FORM] Entry IDs configured:', {
+        nama: namaField,
+        pesanan: pesananField,
+        note: noteField,
+        total: totalField,
+        noOrder: noOrderField
+      });
+      
+      // Append form fields - only if they're configured
+      if (namaField) {
+        formData.append(namaField, name);
+        console.log(`[FORM] Added NAMA: ${name}`);
+      }
+      if (pesananField) {
+        formData.append(pesananField, orderString);
+        console.log(`[FORM] Added PESANAN (${pesananField}): ${orderString.substring(0, 50)}...`);
+      }
+      if (noteField) {
+        formData.append(noteField, note);
+        console.log(`[FORM] Added NOTE: ${note}`);
+      }
+      if (totalField) {
+        formData.append(totalField, total.toString());
+        console.log(`[FORM] Added TOTAL (${totalField}): ${total}`);
+      }
+      if (noOrderField) {
+        formData.append(noOrderField, orderNumber);
+        console.log(`[FORM] Added NO_ORDER (${noOrderField}): ${orderNumber}`);
+      }
+      
+      const formUrl = process.env.NEXT_PUBLIC_GOOGLE_FORM_URL;
+      console.log('[FORM] Form URL:', formUrl);
+      
+      if (!formUrl) {
+        console.error('[FORM] ❌ ERROR: Google Form URL not configured!');
+        throw new Error('Google Form URL tidak dikonfigurasi di .env.local');
+      }
+      
+      try {
+        console.log('[FORM] 📤 Sending fetch request to Google Form...');
+        // Submit to Google Form with no-cors mode (silent submission)
+        const fetchResponse = await fetch(formUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          body: formData
+        });
+        
+        console.log('[FORM] ✓ Fetch request completed (no-cors ignore response)');
+        console.log('[FORM] ✓ Google Form submission sent silently');
+      } catch (formError) {
+        // Still continue even if form submission fails
+        console.error('[FORM] ⚠️ Form submission had error (but continuing):', formError);
+      } finally {
+        console.log('[FORM] Data harus sudah masuk ke Google Form responses');
+      }
+
+      // Step 3: Update Stock via API (Background Process)
       const quantities = getOrderQuantities();
       const stockUpdates = Object.entries(quantities).map(([nama_item, qty]) => ({
         nama_item,
         quantity: qty
       }));
 
-      console.log("DEBUG: Mengirim update stok ke API:", JSON.stringify(stockUpdates));
+      console.log('[STOCK] Sending stock updates...', JSON.stringify(stockUpdates));
 
       if (stockUpdates.length > 0) {
         fetch(API_URLS.UPDATE_STOCK, {
           method: 'POST',
-          mode: 'no-cors', // Penting: agar browser tidak memblokir request ke Google Script
+          mode: 'no-cors',
           headers: {
             'Content-Type': 'text/plain',
           },
           body: JSON.stringify({ updates: stockUpdates })
-        }).catch(e => console.error("Gagal update stok:", e));
+        }).catch(e => console.error('Gagal update stok:', e));
       }
 
-      // Step 3: Construct the final WhatsApp message
+      // Step 4: Construct the final WhatsApp message
       const now = new Date();
       const timeString = `${('0' + now.getHours()).slice(-2)}:${('0' + now.getMinutes()).slice(-2)}:${('0' + now.getSeconds()).slice(-2)}`;
 
