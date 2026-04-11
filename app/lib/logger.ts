@@ -1,6 +1,10 @@
 import { DEVELOPER_MODE } from './settings';
 
-export const devLogEnabled = DEVELOPER_MODE;
+const isServer = typeof window === 'undefined';
+
+// Server logs should always be visible in deployment logs (e.g. Vercel).
+// Client/browser logs remain controlled by DEVELOPER_MODE.
+export const devLogEnabled = isServer || DEVELOPER_MODE;
 
 export function devLog(...args: unknown[]) {
   if (devLogEnabled) {

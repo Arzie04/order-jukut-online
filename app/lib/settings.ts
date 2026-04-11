@@ -10,7 +10,8 @@
 //              Log developer di browser/server Next.js ditampilkan.
 //    - false : Aplikasi berjalan normal sesuai aturan bisnis.
 //              Log developer dibungkam dari app web untuk output yang lebih bersih.
-export const DEVELOPER_MODE = false;
+const developerModeEnv = process.env.NEXT_PUBLIC_DEVELOPER_MODE?.trim().toLowerCase();
+export const DEVELOPER_MODE = developerModeEnv === 'true';
 
 // 2. STATUS HALAMAN TUTUP (MAINTENANCE / LIBUR PANJANG)
 //    - 'on'  : Halaman /closed AKTIF. Jika jam operasional 00.00, user dilempar ke sini.
