@@ -495,7 +495,7 @@ export default function Home() {
       devError('[ORDER] Submission Error:', error);
       setAlert({
         type: 'danger',
-        message: `❌ Terjadi kesalahan saat membuat pesanan: ${error.message}\n\nSilakan coba lagi atau hubungi admin.`
+        message: `❌ Terjadi kesalahan saat membuat pesanan: ${error.message}\n\nAda kendala? Coba muat ulang / refresh halaman. Jika masih ada kendala, hubungi admin.`
       });
     } finally {
       setIsSubmitting(false);

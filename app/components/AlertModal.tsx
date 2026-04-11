@@ -40,6 +40,13 @@ export default function AlertModal({
   const [isSubmittingManual, setIsSubmittingManual] = useState(false);
   const [savedCloudinaryUrl, setSavedCloudinaryUrl] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const shouldShowPaymentIssueAdminContact =
+    type === 'success' &&
+    noOrder &&
+    totalAmount != null &&
+    verificationResult &&
+    !verificationResult.success;
+  const showGenericErrorHelp = type === 'danger' || type === 'warning';
   
   const handleCopyMessage = async () => {
     if (whatsappMessage) {
@@ -296,8 +303,13 @@ export default function AlertModal({
           </p>
 
           {/* Admin Contact - Show for danger/warning alerts */}
-          {(type === 'danger' || type === 'warning') && (
+          {showGenericErrorHelp && (
             <div className="mb-6 md:mb-8 space-y-3 md:space-y-4">
+              <div className="bg-white border-2 border-amber-300 rounded-lg md:rounded-xl p-4 md:p-5 lg:p-5 text-center shadow-sm">
+                <p className="text-sm md:text-base text-amber-900 font-bold leading-relaxed">
+                  Ada kendala? Coba muat ulang / refresh halaman. Jika masih ada kendala, hubungi admin.
+                </p>
+              </div>
               <div className="bg-gradient-to-r from-red-100 to-orange-100 border-2 border-red-400 rounded-lg md:rounded-xl p-4 md:p-5 lg:p-5 text-center shadow-sm">
                 <p className="text-xs md:text-sm lg:text-xs text-red-700 font-bold mb-2 md:mb-3 uppercase">📱 Ada Kendala? Hubungi Admin</p>
                 <a 
@@ -367,6 +379,28 @@ export default function AlertModal({
                     : 'bg-red-50 border-red-400 text-red-800'
                 }`}>
                   <p className="text-sm font-semibold">{verificationResult.message}</p>
+                </div>
+              )}
+
+              {shouldShowPaymentIssueAdminContact && (
+                <div className="p-4 rounded-xl border-2 border-red-400 bg-gradient-to-r from-red-50 to-orange-50 text-center space-y-3">
+                  <p className="text-sm text-red-900 font-semibold leading-relaxed">
+                    Ada kendala? Coba muat ulang / refresh halaman. Jika masih ada kendala, hubungi admin.
+                  </p>
+                  <p className="text-sm font-bold text-red-900">
+                    Ada kendala saat upload atau verifikasi bukti pembayaran?
+                  </p>
+                  <p className="text-xs text-red-800 font-medium">
+                    Hubungi admin sekarang agar pesanan bisa dibantu cek manual.
+                  </p>
+                  <a
+                    href="https://wa.me/62882007448066"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block w-full px-4 py-3 rounded-lg font-bold text-white bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-700 hover:to-orange-600 transition-all active:scale-95"
+                  >
+                    Hubungi Admin WhatsApp
+                  </a>
                 </div>
               )}
 
