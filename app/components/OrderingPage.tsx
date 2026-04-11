@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import ConfirmationModal from './ConfirmationModal';
 import AlertModal from './AlertModal';
 import TutorialModal from './TutorialModal';
@@ -43,6 +43,7 @@ export interface OrderingPageProps {
   stock: StockItem[];
   orderItems: OrderItem[];
   isSubmitting?: boolean; // Add isSubmitting
+  isCheckingLatestData?: boolean;
   whatsappUrl: string;
   whatsappMessage: string;
   baseMessage?: string;
@@ -59,7 +60,7 @@ export interface OrderingPageProps {
   setNote: (note: string) => void;
   setAlert: (alert: AlertMessage | null) => void;
   calculateTotal: () => void;
-  handleOpenConfirm: () => boolean;
+  handleOpenConfirm: () => Promise<boolean>;
   handleModalSubmit: () => Promise<void>;
   handleAddOrUpdateItem: (code: string, newQty?: number) => void;
   handleMovePackageVariant: (code: string, targetVariant: 'SI' | 'SB') => void;
@@ -69,31 +70,21 @@ export interface OrderingPageProps {
 export default function OrderingPage({
   name, note, total, calcDetails, showCalcResult, alert, isStoreOpen,
   statusReason, openingTimeText, closingTimeText, stock, orderItems,
-  isSubmitting, whatsappUrl, whatsappMessage, baseMessage, priceMap, isPackageOutOfStock, isNdjOutOfStock,
+  isSubmitting, isCheckingLatestData, whatsappUrl, whatsappMessage, baseMessage, priceMap, isPackageOutOfStock, isNdjOutOfStock,
   noOrder, currentOrderTotal, onPaymentConfirmed,
   setName, setNote, setAlert, calculateTotal, handleOpenConfirm,
   handleModalSubmit, handleAddOrUpdateItem, handleMovePackageVariant
 }: OrderingPageProps) {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [showAlertModal, setShowAlertModal] = useState(!!alert);
   const [showTutorialModal, setShowTutorialModal] = useState(true);
   const [showComingSoonModal, setShowComingSoonModal] = useState(false);
-
-  // Effect to handle showing the alert modal when the alert prop changes
-  useEffect(() => {
-    if (alert) {
-      setShowAlertModal(true);
-    } else {
-      setShowAlertModal(false);
-    }
-  }, [alert]);
+  const showAlertModal = Boolean(alert);
   
   const handleCloseTutorial = () => {
     setShowTutorialModal(false);
   };
 
   const closeAlert = () => {
-    setShowAlertModal(false);
     setAlert(null); // Notify parent to clear the alert
   }
 
@@ -102,8 +93,8 @@ export default function OrderingPage({
     setShowConfirmModal(false);
   }
   
-  const openConfirm = () => {
-      const isValid = handleOpenConfirm();
+  const openConfirm = async () => {
+      const isValid = await handleOpenConfirm();
       if (isValid) {
         setShowConfirmModal(true);
       }
@@ -146,6 +137,7 @@ export default function OrderingPage({
             priceMap={priceMap}
             isPackageOutOfStock={isPackageOutOfStock}
             isNdjOutOfStock={isNdjOutOfStock}
+            isCheckingLatestData={isCheckingLatestData}
           />
         </div>
       </div>

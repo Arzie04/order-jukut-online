@@ -47,7 +47,11 @@ export default function StockDisplay({ stock }: { stock: StockItem[] }) {
             const stockItem = stock.find(
               (item) => item.nama_item.toUpperCase() === itemName
             );
-            const status = stockItem ? stockItem.status : 'Tidak Tersedia';
+            const status = !stockItem
+              ? 'Tidak Tersedia'
+              : stockItem.stok <= 0
+                ? 'Terjual Habis'
+                : stockItem.status;
             return (
               <div key={itemName} className="flex justify-center items-center bg-white py-1 px-2 rounded-lg shadow-sm border border-gray-100">
                 <span className={`font-semibold ${getStockStatusColor(status)}`}>

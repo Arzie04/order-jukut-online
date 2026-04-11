@@ -28,6 +28,22 @@ const NDJ_PACKAGE_DEPENDENCIES = ['NASI DAUN JERUK', 'JUKUT', 'SAMBAL IJO'] as c
 
 type PackageVariant = 'SI' | 'SB';
 
+interface OrderRow {
+  no_order?: string;
+  waktu?: string;
+}
+
+interface ConfigOrdersFetchResult {
+  success: boolean;
+  isOpen: boolean;
+  reason: string | null;
+}
+
+interface RealtimeRefreshResult {
+  configResult: ConfigOrdersFetchResult;
+  stockData: StockItem[] | null;
+}
+
 function parseOrderCode(code: string) {
   const parts = code.trim().split(/\s+/);
   const prefix = parts[0];
@@ -57,6 +73,31 @@ function getItemPrice(code: string) {
   return priceMap[baseCode] || 0;
 }
 
+function updateStockWithDerivedStatus(stockItems: StockItem[], quantities: Record<string, number>) {
+  return stockItems.map((item) => {
+    const consumedQty = quantities[item.nama_item] || quantities[item.nama_item.toUpperCase()] || 0;
+
+    if (!consumedQty) {
+      return item;
+    }
+
+    const nextStock = Math.max(0, item.stok - consumedQty);
+    let nextStatus = item.status;
+
+    if (nextStock <= 0) {
+      nextStatus = 'Terjual Habis';
+    } else if (item.status === 'Terjual Habis') {
+      nextStatus = 'Tersedia';
+    }
+
+    return {
+      ...item,
+      stok: nextStock,
+      status: nextStatus,
+    };
+  });
+}
+
 export default function Home() {
   // --- State previously in page.tsx ---
   const [pageIsLoading, setPageIsLoading] = useState(true);
@@ -79,6 +120,7 @@ export default function Home() {
   const [stock, setStock] = useState<StockItem[]>([]);
   const [maxOrders, setMaxOrders] = useState(15);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCheckingLatestData, setIsCheckingLatestData] = useState(false);
   const [whatsappUrl, setWhatsappUrl] = useState('');
   const [whatsappMessage, setWhatsappMessage] = useState('');
   const [baseMessage, setBaseMessage] = useState<string>('');
@@ -278,7 +320,41 @@ export default function Home() {
     return quantities;
   };
 
-  const handleOpenConfirm = (): boolean => {
+  const validateOrderAgainstFreshStock = useCallback((latestStock: StockItem[]): boolean => {
+    const orderQuantities = getOrderQuantities();
+    const insufficientStockNames = new Set<string>();
+    const unavailableMessageParts: string[] = [];
+
+    for (const itemName in orderQuantities) {
+      const stockItem = latestStock.find(item => item.nama_item.toUpperCase() === itemName.toUpperCase());
+      const available = stockItem ? stockItem.stok : 0;
+      if (available < orderQuantities[itemName]) {
+        insufficientStockNames.add(itemName);
+        unavailableMessageParts.push(`${itemName} (Stok terbaru: ${available})`);
+      }
+    }
+
+    if (insufficientStockNames.size > 0) {
+      const newOrderItems = orderItems.filter(item => {
+        const consumes = getConsumedStockNames(item.code);
+        return !consumes.some(name => insufficientStockNames.has(name));
+      });
+
+      setOrderItems(newOrderItems);
+      const newOrderString = newOrderItems.map(item => `${item.code} ${item.qty}`).join('\n');
+      setOrder(newOrderString);
+
+      setAlert({
+        type: 'danger',
+        message: `Stok terbaru tidak mencukupi: ${unavailableMessageParts.join(', ')}. Item terkait telah dihapus dari pesanan. Silakan cek ulang lalu pesan kembali. Jika masih tidak sinkron, refresh halaman.`
+      });
+      return false;
+    }
+
+    return true;
+  }, [orderItems]);
+
+  const validateLatestOrderConditions = useCallback(async (): Promise<boolean> => {
     if (!name.trim() || orderItems.length === 0) {
       setAlert({ 
         type: 'danger', 
@@ -287,33 +363,25 @@ export default function Home() {
       return false;
     }
 
-    // Validasi Stok dan Hapus Item yang Habis
-    const orderQuantities = getOrderQuantities();
-    const insufficientStockNames = new Set<string>();
-    const unavailableMessageParts: string[] = [];
+    const { configResult, stockData } = await refreshRealtimeData();
 
-    for (const itemName in orderQuantities) {
-      const stockItem = stock.find(item => item.nama_item.toUpperCase() === itemName.toUpperCase());
-      const available = stockItem ? stockItem.stok : 0;
-      if (available < orderQuantities[itemName]) {
-        insufficientStockNames.add(itemName);
-        unavailableMessageParts.push(`${itemName} (Stok: ${available})`);
-      }
+    if (!configResult.success || !stockData) {
+      setAlert({
+        type: 'danger',
+        message: 'Tidak berhasil mengambil data terbaru dari server. Silakan ulangi proses pemesanan. Jika masih sama, refresh halaman lalu coba lagi.'
+      });
+      return false;
     }
 
-    if (insufficientStockNames.size > 0) {
-      const newOrderItems = orderItems.filter(item => {
-        const consumes = getConsumedStockNames(item.code);
-
-        // Hapus item jika salah satu bahan bakunya tidak cukup
-        return !consumes.some(name => insufficientStockNames.has(name));
+    if (!configResult.isOpen) {
+      setAlert({
+        type: 'warning',
+        message: `${configResult.reason || 'Outlet sedang tidak menerima pesanan.'}\n\nSilakan ulangi beberapa saat lagi atau refresh halaman untuk sinkronisasi data terbaru.`
       });
+      return false;
+    }
 
-      setOrderItems(newOrderItems);
-      const newOrderString = newOrderItems.map(item => `${item.code} ${item.qty}`).join('\n');
-      setOrder(newOrderString);
-      
-      setAlert({ type: 'danger', message: `Stok tidak cukup: ${unavailableMessageParts.join(', ')}. Item terkait telah dihapus dari pesanan.` });
+    if (!validateOrderAgainstFreshStock(stockData)) {
       return false;
     }
 
@@ -325,15 +393,31 @@ export default function Home() {
       return false;
     }
     return true;
+  }, [name, orderItems, calculateTotal, validateOrderAgainstFreshStock]);
+
+  const handleOpenConfirm = async (): Promise<boolean> => {
+    setIsCheckingLatestData(true);
+    setAlert(null);
+
+    try {
+      return await validateLatestOrderConditions();
+    } finally {
+      setIsCheckingLatestData(false);
+    }
   };
 
   const handleModalSubmit = async () => {
     setIsSubmitting(true);
     setAlert(null);
 
-    const orderString = orderItems.map(item => `${item.code} ${item.qty}`).join('\n');
-
     try {
+      const isStillValid = await validateLatestOrderConditions();
+      if (!isStillValid) {
+        return;
+      }
+
+      const orderString = orderItems.map(item => `${item.code} ${item.qty}`).join('\n');
+
       // Step 1: Create order on backend so number generation and insert
       // happen in one locked operation.
       devLog('[ORDER] Creating order via insert-order API...');
@@ -439,14 +523,22 @@ export default function Home() {
       devLog('[STOCK] Sending stock updates...', JSON.stringify(stockUpdates));
 
       if (stockUpdates.length > 0) {
-        fetch(API_URLS.UPDATE_STOCK, {
+        const stockUpdateResponse = await fetch(API_URLS.UPDATE_STOCK, {
           method: 'POST',
-          mode: 'no-cors',
           headers: {
-            'Content-Type': 'text/plain',
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({ updates: stockUpdates })
-        }).catch(e => devError('Gagal update stok:', e));
+        });
+
+        const stockUpdateResult = await stockUpdateResponse.json().catch(() => null);
+
+        if (!stockUpdateResponse.ok || stockUpdateResult?.success === false) {
+          devError('Gagal update stok:', stockUpdateResult);
+        } else {
+          setStock(currentStock => updateStockWithDerivedStatus(currentStock, quantities));
+          await refreshRealtimeData();
+        }
       }
 
       // Step 4: Construct the final WhatsApp message
@@ -491,11 +583,12 @@ export default function Home() {
       setCalcDetails('');
       setShowCalcResult(false);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Kesalahan tidak diketahui';
       devError('[ORDER] Submission Error:', error);
       setAlert({
         type: 'danger',
-        message: `❌ Terjadi kesalahan saat membuat pesanan: ${error.message}\n\nAda kendala? Coba muat ulang / refresh halaman. Jika masih ada kendala, hubungi admin.`
+        message: `❌ Terjadi kesalahan saat membuat pesanan: ${errorMessage}\n\nAda kendala? Coba muat ulang / refresh halaman. Jika masih ada kendala, hubungi admin.`
       });
     } finally {
       setIsSubmitting(false);
@@ -539,7 +632,7 @@ export default function Home() {
     return { isOpen: true, reason: null };
   }, [isWithinOpeningHours]);
 
-  const fetchConfigAndOrders = useCallback(async () => {
+  const fetchConfigAndOrders = useCallback(async (): Promise<ConfigOrdersFetchResult> => {
     const maxRetries = 3;
     let lastError: Error | null = null;
     
@@ -588,7 +681,7 @@ export default function Home() {
         
         // Process orders
         const today = new Date();
-        const orderCount = Array.isArray(ordersData) ? ordersData.filter((row: any) => {
+        const orderCount = Array.isArray(ordersData) ? ordersData.filter((row: OrderRow) => {
           if (!row?.no_order || !row?.waktu) return false;
           const t = new Date(row.waktu);
           return t.getFullYear() === today.getFullYear() && t.getMonth() === today.getMonth() && t.getDate() === today.getDate();
@@ -599,7 +692,7 @@ export default function Home() {
         setIsStoreOpen(status.isOpen);
         setStatusReason(status.reason);
         
-        return; // Success - exit retry loop
+        return { success: true, isOpen: status.isOpen, reason: status.reason }; // Success - exit retry loop
         
       } catch (error) {
         lastError = error as Error;
@@ -633,9 +726,10 @@ export default function Home() {
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
+    return { success: false, isOpen: false, reason: lastError?.message || 'Gagal memuat status outlet' };
   }, [getDynamicStatus]);
 
-  const fetchStock = useCallback(async () => {
+  const fetchStock = useCallback(async (): Promise<StockItem[] | null> => {
     const maxRetries = 3;
     let lastError: Error | null = null;
     
@@ -666,7 +760,7 @@ export default function Home() {
         
         if (Array.isArray(data)) {
           setStock(data);
-          return; // Success - exit retry loop
+          return data; // Success - exit retry loop
         } else {
           throw new Error('Invalid data format received');
         }
@@ -701,7 +795,16 @@ export default function Home() {
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
+    return null;
   }, []);
+
+  const refreshRealtimeData = useCallback(async (): Promise<RealtimeRefreshResult> => {
+    const [configResult, stockData] = await Promise.all([
+      fetchConfigAndOrders(),
+      fetchStock(),
+    ]);
+    return { configResult, stockData };
+  }, [fetchConfigAndOrders, fetchStock]);
 
   useEffect(() => {
     calculateTotal();
@@ -710,24 +813,21 @@ export default function Home() {
   useEffect(() => {
     const loadInitialData = async () => {
       // setPageIsLoading(true); // Tidak perlu karena default state sudah true
-      await Promise.all([
-          fetchConfigAndOrders(),
-          fetchStock()
-      ]);
+      await refreshRealtimeData();
       setPageIsLoading(false);
     };
     loadInitialData();
-  }, []); // Dependency kosong agar hanya jalan sekali saat mount
+  }, [refreshRealtimeData]); // Dependency kosong agar hanya jalan sekali saat mount
 
-  // Set up polling for stock updates
+  // Set up polling for stock + config updates together
   useEffect(() => {
     const intervalId = setInterval(() => {
-      fetchStock();
+      refreshRealtimeData();
     }, 30000); // Poll every 30 seconds
 
     // Cleanup interval on component unmount
     return () => clearInterval(intervalId);
-  }, [fetchStock]);
+  }, [refreshRealtimeData]);
 
   const getStockAmount = (itemName: string): number | undefined => {
     return stock.find(item => item.nama_item.toUpperCase() === itemName.toUpperCase())?.stok;
@@ -762,6 +862,7 @@ export default function Home() {
           handleAddOrUpdateItem={handleAddOrUpdateItem}
           handleMovePackageVariant={handleMovePackageVariant}
           isSubmitting={isSubmitting}
+          isCheckingLatestData={isCheckingLatestData}
           whatsappUrl={whatsappUrl}
           whatsappMessage={whatsappMessage}
           baseMessage={baseMessage}

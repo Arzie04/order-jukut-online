@@ -18,7 +18,8 @@ interface OrderFormProps {
   showCalcResult: boolean;
   calcDetails: string;
   calculateTotal: () => void;
-  handleOpenConfirm: () => void;
+  handleOpenConfirm: () => Promise<void>;
+  isCheckingLatestData?: boolean;
   
   // New props for button-based UI
   orderItems: OrderItem[];
@@ -48,6 +49,7 @@ export default function OrderForm({
   priceMap,
   isPackageOutOfStock,
   isNdjOutOfStock,
+  isCheckingLatestData,
 }: OrderFormProps) {
 
   const handleUpdateQty = (code: string, newQty: number) => {
@@ -155,14 +157,14 @@ export default function OrderForm({
           <button
             type="button"
             onClick={handleOpenConfirm}
-            disabled={!isStoreOpen}
+            disabled={!isStoreOpen || isCheckingLatestData}
             className={`w-full py-4 font-bold text-lg rounded-xl transition shadow-lg active:scale-[0.98] block ${
-              isStoreOpen
+              isStoreOpen && !isCheckingLatestData
                 ? 'bg-[#2E7D32] text-white hover:opacity-90'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
           >
-            Pesan Sekarang
+            {isCheckingLatestData ? 'Mengecek Stok & Config Terbaru...' : 'Pesan Sekarang'}
           </button>
           {!isStoreOpen && (
             <div className="mt-2 text-center text-sm text-red-600 font-semibold">
