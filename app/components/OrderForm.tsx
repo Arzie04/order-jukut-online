@@ -164,7 +164,7 @@ export default function OrderForm({
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
           >
-            {isCheckingLatestData ? 'Mengecek Stok & Config Terbaru...' : 'Pesan Sekarang'}
+            {isCheckingLatestData ? 'Mengecek Stok & Batas Pesanan Terbaru...' : 'Pesan Sekarang'}
           </button>
           {!isStoreOpen && (
             <div className="mt-2 text-center text-sm text-red-600 font-semibold">

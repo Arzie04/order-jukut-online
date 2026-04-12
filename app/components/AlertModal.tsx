@@ -448,27 +448,27 @@ export default function AlertModal({
                   <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl p-4 md:p-5 lg:p-5">
                       <p className="text-xs md:text-sm lg:text-xs text-yellow-700 font-bold mb-3 md:mb-4 uppercase">📋 Template Pesan untuk Admin (Salin & Kirim):</p>
                       <div className="text-xs md:text-sm lg:text-xs text-gray-700 whitespace-pre-wrap font-mono max-h-48 md:max-h-56 overflow-y-auto bg-white rounded p-3 md:p-4 border border-gray-300 leading-relaxed">
-{baseMessage ? `${baseMessage}Bukti Pembayaran :` : `!!JANGAN UBAH PESAN INI!!
+{baseMessage ? `${baseMessage}${savedCloudinaryUrl ? 'Bukti Pembayaran :' : 'Konfirmasi Manual By Chat'}` : `!!JANGAN UBAH PESAN INI!!
 
 ${noOrder}
 
 Pembayaran QRIS
 
-Bukti Pembayaran :`}
+${savedCloudinaryUrl ? 'Bukti Pembayaran :' : 'Konfirmasi Manual By Chat'}`}
                       </div>
                   </div>
                   
                   <button
                   onClick={() => {
                     const manualMessage = baseMessage 
-                      ? `${baseMessage}Bukti Pembayaran :`
+                      ? `${baseMessage}${savedCloudinaryUrl ? 'Bukti Pembayaran :' : 'Konfirmasi Manual By Chat'}`
                       : `!!JANGAN UBAH PESAN INI!!
 
 ${noOrder}
 
 Pembayaran QRIS
 
-Bukti Pembayaran :`;
+${savedCloudinaryUrl ? 'Bukti Pembayaran :' : 'Konfirmasi Manual By Chat'}`;
                     navigator.clipboard.writeText(manualMessage);
                     setCopySuccess(true);
                     setTimeout(() => setCopySuccess(false), 2000);

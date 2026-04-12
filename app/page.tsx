@@ -363,6 +363,8 @@ export default function Home() {
       return false;
     }
 
+    // Selalu ambil data terbaru dari server untuk memastikan validasi akurat
+    devLog('[VALIDATION] Mengambil data terbaru untuk validasi...');
     const { configResult, stockData } = await refreshRealtimeData();
 
     if (!configResult.success || !stockData) {
@@ -373,18 +375,37 @@ export default function Home() {
       return false;
     }
 
-    if (!configResult.isOpen) {
-      setAlert({
-        type: 'warning',
-        message: `${configResult.reason || 'Outlet sedang tidak menerima pesanan.'}\n\nSilakan ulangi beberapa saat lagi atau refresh halaman untuk sinkronisasi data terbaru.`
-      });
-      return false;
-    }
-
+    // Step 1: Validasi stok terlebih dahulu (sesuai requirement)
+    devLog('[VALIDATION] Step 1: Validasi stok...');
     if (!validateOrderAgainstFreshStock(stockData)) {
+      devLog('[VALIDATION] Validasi stok gagal');
       return false;
     }
+    devLog('[VALIDATION] Validasi stok berhasil');
 
+    // Step 2: Validasi max order setelah stok (sesuai requirement)
+    devLog('[VALIDATION] Step 2: Validasi max order...');
+    if (!configResult.isOpen) {
+      // Cek apakah alasan penutupan adalah karena max order
+      if (configResult.reason && configResult.reason.includes('Batas maksimal pesanan')) {
+        devLog('[VALIDATION] Max order tercapai');
+        setAlert({
+          type: 'warning',
+          message: `❌ Pesanan sudah mencapai batas maksimal\n\n${configResult.reason}\n\nPesanan tidak dapat diproses karena sudah mencapai batas maksimal untuk hari ini. Silakan coba lagi besok atau hubungi admin untuk informasi lebih lanjut.`
+        });
+      } else {
+        devLog('[VALIDATION] Outlet tutup karena alasan lain:', configResult.reason);
+        setAlert({
+          type: 'warning',
+          message: `${configResult.reason || 'Outlet sedang tidak menerima pesanan.'}\n\nSilakan ulangi beberapa saat lagi atau refresh halaman untuk sinkronisasi data terbaru.`
+        });
+      }
+      return false;
+    }
+    devLog('[VALIDATION] Validasi max order berhasil');
+
+    // Step 3: Validasi perhitungan total
+    devLog('[VALIDATION] Step 3: Validasi perhitungan total...');
     if (!calculateTotal()) {
       setAlert({ 
         type: 'danger', 
@@ -392,10 +413,16 @@ export default function Home() {
       }); 
       return false;
     }
+    devLog('[VALIDATION] Semua validasi berhasil');
     return true;
   }, [name, orderItems, calculateTotal, validateOrderAgainstFreshStock]);
 
   const handleOpenConfirm = async (): Promise<boolean> => {
+    // Prevent race condition - jika sudah ada proses validasi atau submit yang berjalan
+    if (isCheckingLatestData || isSubmitting) {
+      return false;
+    }
+
     setIsCheckingLatestData(true);
     setAlert(null);
 
@@ -411,10 +438,14 @@ export default function Home() {
     setAlert(null);
 
     try {
+      // Validasi ulang sebelum submit untuk memastikan kondisi terbaru
+      devLog('[SUBMIT] Melakukan validasi final sebelum submit...');
       const isStillValid = await validateLatestOrderConditions();
       if (!isStillValid) {
+        devLog('[SUBMIT] Validasi final gagal, submit dibatalkan');
         return;
       }
+      devLog('[SUBMIT] Validasi final berhasil, melanjutkan submit...');
 
       const orderString = orderItems.map(item => `${item.code} ${item.qty}`).join('\n');
 
