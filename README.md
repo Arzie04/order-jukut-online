@@ -53,6 +53,38 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 ## Database Configuration
 
+This application uses a hybrid database approach:
+1. **Google Sheets + Google Apps Script** for main order management
+2. **Supabase** for delivery driver system (optional)
+
+### Supabase Configuration (Optional - for Delivery Features)
+
+If you want to use the delivery driver system, you need to configure Supabase:
+
+1. Create a new project at [https://supabase.com](https://supabase.com)
+2. Create a `drivers` table with the following structure:
+   ```sql
+   CREATE TABLE drivers (
+     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     status TEXT NOT NULL CHECK (status IN ('standby', 'busy', 'offline')),
+     is_verified BOOLEAN DEFAULT false,
+     telegram_id TEXT,
+     name TEXT,
+     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+   );
+   ```
+3. Copy your Supabase URL and Service Role Key from Settings > API
+4. Update the `.env.local` file with your credentials:
+   ```
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
+   ```
+5. Restart the development server
+
+**Note**: If Supabase is not configured, the delivery features will be automatically disabled and the application will work normally with just the Google Sheets backend.
+
+### Google Sheets Database
+
 This application uses Google Sheets as a database through Google Apps Script. The configuration is as follows:
 
 ### Google Sheets Database

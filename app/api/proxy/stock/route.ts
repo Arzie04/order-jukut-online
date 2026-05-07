@@ -33,9 +33,10 @@ export async function GET() {
 
     const data = await response.json();
     const nextResponse = NextResponse.json(data);
-    // Set aggressive caching for CDN + browser
-    nextResponse.headers.set('Cache-Control', 'max-age=45, s-maxage=45, stale-while-revalidate=120');
-    nextResponse.headers.set('CDN-Cache-Control', 'max-age=45');
+    // Set short, stale-while-revalidate caching for stock
+    nextResponse.headers.set('Cache-Control', 'max-age=15, s-maxage=15, stale-while-revalidate=60');
+    nextResponse.headers.set('CDN-Cache-Control', 'public, max-age=15');
+    nextResponse.headers.set('Vercel-CDN-Cache-Control', 'public, max-age=15');
     return nextResponse;
   } catch (error) {
     devError('Stock proxy error:', error);

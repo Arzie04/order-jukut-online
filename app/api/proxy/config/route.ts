@@ -29,18 +29,21 @@ export async function GET(request: NextRequest) {
     const data = await response.json();
     const nextResponse = NextResponse.json(data);
     
-    // Aggressive caching untuk config, less aggressive untuk orders
+    // Set short, stale-while-revalidate caching
     if (isNextOrderRequest) {
       nextResponse.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
       nextResponse.headers.set('CDN-Cache-Control', 'no-store');
       nextResponse.headers.set('Vercel-CDN-Cache-Control', 'no-store');
     } else if (api === 'config') {
-      nextResponse.headers.set('Cache-Control', 'max-age=300, s-maxage=300, stale-while-revalidate=600');
-    } else if (api === 'orders') {
-      nextResponse.headers.set('Cache-Control', 'max-age=60, s-maxage=60, stale-while-revalidate=120');
-    }
-    if (!isNextOrderRequest) {
-      nextResponse.headers.set('CDN-Cache-Control', `max-age=${api === 'config' ? 300 : 60}`);
+      // Config changes less often, cache for 25s
+      nextResponse.headers.set('Cache-Control', 'max-age=25, s-maxage=25, stale-while-revalidate=60');
+      nextResponse.headers.set('CDN-Cache-Control', 'public, max-age=25');
+      nextResponse.headers.set('Vercel-CDN-Cache-Control', 'public, max-age=25');
+    } else { // 'orders'
+      // Orders change frequently, cache for 15s
+      nextResponse.headers.set('Cache-Control', 'max-age=15, s-maxage=15, stale-while-revalidate=60');
+      nextResponse.headers.set('CDN-Cache-Control', 'public, max-age=15');
+      nextResponse.headers.set('Vercel-CDN-Cache-Control', 'public, max-age=15');
     }
     return nextResponse;
   } catch (error) {

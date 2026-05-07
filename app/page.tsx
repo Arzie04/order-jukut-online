@@ -4,6 +4,15 @@ import { useState, useEffect, useCallback } from 'react';
 import OrderingPage from './components/OrderingPage';
 import LoadingScreen from './components/LoadingScreen';
 import { API_URLS } from './lib/api-config';
+import {
+  countPackageItems,
+  formatDistanceKm,
+  getDeliveryPricing,
+  getMinimumOrderAmount,
+  type DeliveryLocation,
+  type OrderType,
+} from './lib/delivery';
+import { getSupabaseBrowserClient } from './lib/supabase-browser';
 import { DEVELOPER_MODE, CLOSED_PAGE_STATUS } from './lib/settings';
 import { devError, devLog, devWarn } from './lib/logger';
 import { StockItem, OrderItem, AlertMessage } from './components/OrderingPage'; // Import interfaces
@@ -105,8 +114,21 @@ export default function Home() {
   // --- State moved from OrderingPage ---
   const [name, setName] = useState('');
   const [note, setNote] = useState('');
+  const [orderType, setOrderType] = useState<OrderType>('pickup');
+  const [deliveryDriverNote, setDeliveryDriverNote] = useState('');
+  const [deliveryWhatsapp, setDeliveryWhatsapp] = useState('');
+  const [deliveryLocation, setDeliveryLocation] = useState<DeliveryLocation | null>(null);
+  const [deliveryLocationError, setDeliveryLocationError] = useState<string | null>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [order, setOrder] = useState(''); // Kept in sync for submission
+  const [foodTotal, setFoodTotal] = useState(0);
+  const [deliveryFee, setDeliveryFee] = useState(0);
+  const [deliveryDistanceKm, setDeliveryDistanceKm] = useState<number | null>(null);
+  const [deliveryDistanceSource, setDeliveryDistanceSource] = useState<'road' | 'haversine' | null>(null);
+  const [deliveryDistanceError, setDeliveryDistanceError] = useState<string | null>(null);
+  const [isCalculatingDelivery, setIsCalculatingDelivery] = useState(false);
+  const [deliveryEnabled, setDeliveryEnabled] = useState(false);
+  const [standbyDrivers, setStandbyDrivers] = useState(0);
   const [total, setTotal] = useState(0);
   const [calcDetails, setCalcDetails] = useState<string>('');
   const [showCalcResult, setShowCalcResult] = useState(false);
@@ -134,10 +156,15 @@ export default function Home() {
       return; // Abaikan redirect jika mode development aktif
     }
 
-    // Hanya redirect ke /closed jika waktunya 00.00 DAN halaman closed statusnya 'on'
+    // Redirect ke /closed jika maintenance (00.00)
     if (CLOSED_PAGE_STATUS === 'on' && openingTimeText === '00.00' && closingTimeText === '00.00') {
       setIsRedirecting(true);
       window.location.href = '/closed';
+    } 
+    // Redirect ke /temporary-closed jika tutup sementara (11.11)
+    else if (openingTimeText === '11.11' && closingTimeText === '11.11') {
+      setIsRedirecting(true);
+      window.location.href = '/temporary-closed';
     }
   }, [openingTimeText, closingTimeText, CLOSED_PAGE_STATUS]);
 
@@ -151,7 +178,17 @@ export default function Home() {
         const data = JSON.parse(savedOrderData);
         setName(data.name || '');
         setNote(data.note || '');
+        setOrderType(data.orderType || 'pickup');
+        setDeliveryDriverNote(data.deliveryDriverNote || '');
+        setDeliveryWhatsapp(data.deliveryWhatsapp || '');
+        setDeliveryLocation(data.deliveryLocation || null);
+        setDeliveryLocationError(null);
         setOrderItems(data.orderItems || []);
+        setFoodTotal(data.foodTotal || 0);
+        setDeliveryFee(data.deliveryFee || 0);
+        setDeliveryDistanceKm(data.deliveryDistanceKm || null);
+        setDeliveryDistanceSource(data.deliveryDistanceSource || null);
+        setDeliveryDistanceError(null);
         setTotal(data.total || 0);
         setCurrentOrderNumber(data.currentOrderNumber || '');
         setCurrentOrderTotal(data.currentOrderTotal || 0);
@@ -175,7 +212,15 @@ export default function Home() {
       const orderData = {
         name,
         note,
+        orderType,
+        deliveryDriverNote,
+        deliveryWhatsapp,
+        deliveryLocation,
         orderItems,
+        foodTotal,
+        deliveryFee,
+        deliveryDistanceKm,
+        deliveryDistanceSource,
         total,
         currentOrderNumber,
         currentOrderTotal,
@@ -186,7 +231,121 @@ export default function Home() {
       };
       localStorage.setItem('jukut_last_order', JSON.stringify(orderData));
     }
-  }, [name, note, orderItems, total, currentOrderNumber, currentOrderTotal, whatsappMessage, whatsappUrl, baseMessage, paymentProofUrl]);
+  }, [name, note, orderType, deliveryDriverNote, deliveryWhatsapp, deliveryLocation, orderItems, foodTotal, deliveryFee, deliveryDistanceKm, deliveryDistanceSource, total, currentOrderNumber, currentOrderTotal, whatsappMessage, whatsappUrl, baseMessage, paymentProofUrl]);
+
+  const fetchDeliveryDistance = useCallback(async (location: DeliveryLocation) => {
+    setIsCalculatingDelivery(true);
+    setDeliveryDistanceError(null);
+
+    try {
+      const response = await fetch(API_URLS.DELIVERY_DISTANCE, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          latitude: location.latitude,
+          longitude: location.longitude,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      if (!result.success || typeof result.distanceKm !== 'number') {
+        throw new Error(result.error || 'Gagal menghitung jarak delivery.');
+      }
+
+      setDeliveryDistanceKm(result.distanceKm);
+      setDeliveryDistanceSource(result.source === 'road' ? 'road' : 'haversine');
+      if (result.source !== 'road') {
+        setDeliveryDistanceError('Jarak rute jalan gagal dihitung. Sistem memakai fallback garis lurus.');
+      }
+    } catch (error) {
+      devError('[DELIVERY_DISTANCE] Frontend error:', error);
+      setDeliveryDistanceKm(null);
+      setDeliveryDistanceSource(null);
+      setDeliveryDistanceError('Tidak berhasil menghitung jarak delivery. Silakan pilih ulang titik atau coba lagi.');
+    } finally {
+      setIsCalculatingDelivery(false);
+    }
+  }, []);
+
+  const refreshDeliveryStatus = useCallback(async () => {
+    try {
+      const response = await fetch(API_URLS.DELIVERY_STATUS, {
+        cache: 'no-store',
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || `HTTP ${response.status}`);
+      }
+
+      setDeliveryEnabled(Boolean(result.deliveryEnabled));
+      setStandbyDrivers(Number(result.standbyDrivers || 0));
+    } catch (error) {
+      devError('[DELIVERY_STATUS] Frontend refresh error:', error);
+      setDeliveryEnabled(false);
+      setStandbyDrivers(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (orderType !== 'delivery' || !deliveryLocation) {
+      return;
+    }
+
+    fetchDeliveryDistance(deliveryLocation);
+  }, [deliveryLocation, fetchDeliveryDistance, orderType]);
+
+  useEffect(() => {
+    refreshDeliveryStatus();
+
+    let cleanup = () => {};
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const channel = supabase
+        .channel('delivery-drivers-status')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'drivers' },
+          () => {
+            refreshDeliveryStatus();
+          }
+        )
+        .subscribe();
+
+      cleanup = () => {
+        supabase.removeChannel(channel);
+      };
+    } catch (error) {
+      devError('[DELIVERY_STATUS] Realtime subscribe failed:', error);
+    }
+
+    const intervalId = setInterval(() => {
+      refreshDeliveryStatus();
+    }, 30000);
+
+    return () => {
+      cleanup();
+      clearInterval(intervalId);
+    };
+  }, [refreshDeliveryStatus]);
+
+  useEffect(() => {
+    if (deliveryEnabled || orderType !== 'delivery') {
+      return;
+    }
+
+    setOrderType('pickup');
+    setDeliveryLocation(null);
+    setDeliveryDriverNote('');
+    setDeliveryWhatsapp('');
+  }, [deliveryEnabled, orderType]);
 
   // --- LOGIC MOVED FROM OrderingPage ---
 
@@ -259,22 +418,55 @@ export default function Home() {
 
   const calculateTotal = useCallback(() => {
     if (orderItems.length === 0) {
+      setFoodTotal(0);
+      setDeliveryFee(0);
+      if (orderType !== 'delivery') {
+        setDeliveryDistanceKm(null);
+        setDeliveryDistanceSource(null);
+      }
+      setTotal(0);
       setShowCalcResult(false); setCalcDetails(''); return false;
     }
     let totalAmount = 0;
     const details: string[] = [];
+    const packageCount = countPackageItems(orderItems);
+
     orderItems.forEach(({ code, qty }) => {
       const price = getItemPrice(code);
       const lineTotal = (price || 0) * qty;
       totalAmount += lineTotal;
       details.push(`${code} ${qty} = ${lineTotal.toLocaleString('id-ID')}`);
     });
-    const resultHTML = details.join('<br/>') + '<br/>------------------------<br/>TOTAL = ' + totalAmount.toLocaleString('id-ID');
+
+    let nextDeliveryFee = 0;
+    if (orderType === 'delivery' && deliveryLocation && deliveryDistanceKm != null) {
+      const pricing = getDeliveryPricing({
+        distanceKm: deliveryDistanceKm,
+        packageCount,
+      });
+      nextDeliveryFee = pricing.deliveryFee;
+      details.push(`Ongkir ${formatDistanceKm(pricing.distanceKm)} km : Rp ${nextDeliveryFee.toLocaleString('id-ID')}`);
+    }
+
+    const grandTotal = totalAmount + nextDeliveryFee;
+    const resultHTML = details.join('<br/>') + '<br/>------------------------<br/>TOTAL = ' + grandTotal.toLocaleString('id-ID');
     setCalcDetails(resultHTML);
     setShowCalcResult(true);
-    setTotal(totalAmount);
+    setFoodTotal(totalAmount);
+    setDeliveryFee(nextDeliveryFee);
+    setTotal(grandTotal);
     return true;
-  }, [orderItems]);
+  }, [deliveryDistanceKm, deliveryLocation, orderItems, orderType]);
+
+  const buildOrderLines = useCallback(() => {
+    const lines = orderItems.map(item => `${item.code} ${item.qty}`);
+
+    if (orderType === 'delivery' && deliveryDistanceKm != null && deliveryFee > 0) {
+      lines.push(`Ongkir ${formatDistanceKm(deliveryDistanceKm)} km : Rp ${deliveryFee.toLocaleString('id-ID')}`);
+    }
+
+    return lines;
+  }, [deliveryDistanceKm, deliveryFee, orderItems, orderType]);
   
   const getConsumedStockNames = (code: string): string[] => {
     const parsedCode = parseOrderCode(code);
@@ -363,6 +555,41 @@ export default function Home() {
       return false;
     }
 
+    if (orderType === 'delivery' && !deliveryLocation) {
+      setDeliveryLocationError('Lokasi delivery wajib dipilih terlebih dahulu.');
+      setAlert({
+        type: 'danger',
+        message: 'Lokasi delivery wajib dipilih sebelum pesanan dikirim.'
+      });
+      return false;
+    }
+
+    if (orderType === 'delivery' && !deliveryEnabled) {
+      setAlert({
+        type: 'warning',
+        message: 'Delivery sedang tidak tersedia karena belum ada driver standby.'
+      });
+      return false;
+    }
+
+    if (orderType === 'delivery' && !deliveryWhatsapp.trim()) {
+      setAlert({
+        type: 'danger',
+        message: 'Nomor WhatsApp pemesan wajib diisi untuk delivery.'
+      });
+      return false;
+    }
+
+    if (orderType === 'delivery' && deliveryDistanceKm == null) {
+      setAlert({
+        type: 'danger',
+        message: 'Jarak delivery belum berhasil dihitung. Silakan tunggu sebentar atau pilih ulang titik lokasi.'
+      });
+      return false;
+    }
+
+    setDeliveryLocationError(null);
+
     // Selalu ambil data terbaru dari server untuk memastikan validasi akurat
     devLog('[VALIDATION] Mengambil data terbaru untuk validasi...');
     const { configResult, stockData } = await refreshRealtimeData();
@@ -413,9 +640,25 @@ export default function Home() {
       }); 
       return false;
     }
+
+    const currentFoodTotal = orderItems.reduce((sum, item) => {
+      return sum + getItemPrice(item.code) * item.qty;
+    }, 0);
+    const minimumOrderAmount = getMinimumOrderAmount(orderType);
+
+    if (currentFoodTotal < minimumOrderAmount) {
+      setAlert({
+        type: 'danger',
+        message:
+          orderType === 'delivery'
+            ? `Minimum order delivery adalah Rp ${minimumOrderAmount.toLocaleString('id-ID')} tanpa menghitung ongkir.`
+            : `Minimum order pickup adalah Rp ${minimumOrderAmount.toLocaleString('id-ID')}.`,
+      });
+      return false;
+    }
     devLog('[VALIDATION] Semua validasi berhasil');
     return true;
-  }, [name, orderItems, calculateTotal, validateOrderAgainstFreshStock]);
+  }, [name, orderItems, orderType, deliveryLocation, deliveryWhatsapp, deliveryDistanceKm, deliveryEnabled, calculateTotal, validateOrderAgainstFreshStock]);
 
   const handleOpenConfirm = async (): Promise<boolean> => {
     // Prevent race condition - jika sudah ada proses validasi atau submit yang berjalan
@@ -447,7 +690,26 @@ export default function Home() {
       }
       devLog('[SUBMIT] Validasi final berhasil, melanjutkan submit...');
 
-      const orderString = orderItems.map(item => `${item.code} ${item.qty}`).join('\n');
+      const orderLines = buildOrderLines();
+      const orderString = orderLines.join('\n');
+      const normalizedName = name.trim();
+      const submissionName = orderType === 'delivery'
+        ? `${normalizedName} [Delivery]`
+        : normalizedName;
+      const legacyNote = [
+        note.trim(),
+        orderType === 'delivery' && deliveryWhatsapp.trim() ? `WA: ${deliveryWhatsapp.trim()}` : '',
+      ].filter(Boolean).join(' | ');
+      const deliveryFormDriverNote = [
+        deliveryDriverNote.trim(),
+        deliveryWhatsapp.trim() ? `WA: ${deliveryWhatsapp.trim()}` : '',
+      ].filter(Boolean).join('\n');
+      const deliveryStatus = orderType === 'delivery'
+        ? [
+            'Delivery',
+            deliveryDistanceSource === 'road' ? 'Rute Jalan' : 'Fallback Haversine',
+          ].join(' - ')
+        : 'Pickup';
 
       // Step 1: Create order on backend so number generation and insert
       // happen in one locked operation.
@@ -459,9 +721,9 @@ export default function Home() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          nama: name,
+          nama: submissionName,
           pesanan: orderString,
-          note,
+          note: legacyNote,
           total,
         })
       });
@@ -475,6 +737,80 @@ export default function Home() {
 
       devLog('[ORDER] Order created with number:', orderNumber);
       setCurrentOrderNumber(orderNumber);
+
+      try {
+        await fetch(API_URLS.SUBMIT_GOOGLE_FORM, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            nama: submissionName,
+            noOrder: orderNumber,
+            pesanan: orderString,
+            note: legacyNote,
+            total,
+          }),
+        });
+      } catch (legacyFormError) {
+        devError('[GOOGLE_FORM][LEGACY] Silent submit failed:', legacyFormError);
+      }
+
+      if (orderType === 'delivery' && deliveryLocation) {
+        const deliveryOrderSummary = [
+          ...orderLines,
+          deliveryWhatsapp.trim() ? `No. WA = ${deliveryWhatsapp.trim()}` : '',
+          `Total = ${total.toLocaleString('id-ID')}`,
+        ].filter(Boolean).join('\n');
+
+        try {
+          await fetch(API_URLS.SUBMIT_GOOGLE_FORM, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              mode: 'delivery',
+              nama: submissionName,
+              noOrder: orderNumber,
+              pesanan: deliveryOrderSummary,
+              note: legacyNote,
+              total,
+              statusOrder: deliveryStatus,
+              mapsLink: deliveryLocation.mapsLink,
+              driverNote: deliveryFormDriverNote,
+              whatsappNumber: deliveryWhatsapp.trim(),
+            }),
+          });
+        } catch (formError) {
+          devError('[GOOGLE_FORM][DELIVERY] Silent submit failed:', formError);
+        }
+
+        const deliveryOrderResponse = await fetch(API_URLS.DELIVERY_ORDERS, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            orderCode: orderNumber,
+            customerName: submissionName,
+            customerWhatsapp: deliveryWhatsapp.trim(),
+            items: orderString,
+            totalPrice: total,
+            deliveryFee,
+            distanceKm: deliveryDistanceKm,
+            mapsLink: deliveryLocation.mapsLink,
+            noteDriver: deliveryDriverNote.trim(),
+          }),
+        });
+
+        const deliveryOrderResult = await deliveryOrderResponse.json().catch(() => null);
+        if (!deliveryOrderResponse.ok || !deliveryOrderResult?.success) {
+          throw new Error(
+            deliveryOrderResult?.error || 'Order utama tersimpan, tetapi dispatch driver delivery gagal.'
+          );
+        }
+      }
 
       // Step 2: Order sudah tersimpan. Lanjut background stock update.
       
@@ -580,14 +916,30 @@ export default function Home() {
           const price = getItemPrice(item.code);
           const lineTotal = price * item.qty;
           return `${item.code} ${item.qty} = ${lineTotal.toLocaleString('id-ID')}`;
-      }).join('\n');
+      });
+
+      if (orderType === 'delivery' && deliveryDistanceKm != null && deliveryFee > 0) {
+        orderDetailsString.push(
+          `Ongkir ${formatDistanceKm(deliveryDistanceKm)} km : Rp ${deliveryFee.toLocaleString('id-ID')}`
+        );
+      }
 
       let waMessage = `!!JANGAN UBAH PESAN INI!!\n\n`;
       waMessage += `${orderNumber}\n\n`;
-      waMessage += `Pesanan pada jam ${timeString}\ndengan Nama ${name},\n\n`;
-      waMessage += `${orderDetailsString}\n\n`;
+      waMessage += `Pesanan pada jam ${timeString}\ndengan Nama ${submissionName},\n\n`;
+      waMessage += `${orderDetailsString.join('\n')}\n\n`;
       if (note) {
           waMessage += `Note : ${note}\n`;
+      }
+      if (orderType === 'delivery' && deliveryLocation) {
+          if (deliveryWhatsapp.trim()) {
+            waMessage += `No. WA : ${deliveryWhatsapp.trim()}\n`;
+          }
+          if (deliveryDriverNote.trim()) {
+            waMessage += `Catatan driver : ${deliveryDriverNote.trim()}\n`;
+          }
+          waMessage += `Lokasi delivery : ${deliveryLocation.mapsLink}\n`;
+          waMessage += `Ongkir : ${deliveryFee.toLocaleString('id-ID')}\n`;
       }
       waMessage += `total ${total.toLocaleString('id-ID')}\n\nPembayaran QRIS\n\n`;
 
@@ -608,8 +960,18 @@ export default function Home() {
       // Reset form
       setName('');
       setNote('');
+      setOrderType('pickup');
+      setDeliveryDriverNote('');
+      setDeliveryWhatsapp('');
+      setDeliveryLocation(null);
+      setDeliveryLocationError(null);
       setOrderItems([]);
       setOrder('');
+      setFoodTotal(0);
+      setDeliveryFee(0);
+      setDeliveryDistanceKm(null);
+      setDeliveryDistanceSource(null);
+      setDeliveryDistanceError(null);
       setTotal(0);
       setCalcDetails('');
       setShowCalcResult(false);
@@ -672,7 +1034,7 @@ export default function Home() {
         devLog(`Fetching config/orders attempt ${attempt}/${maxRetries}`);
         
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
         
         const [configRes, ordersRes] = await Promise.all([
           fetch(API_URLS.CONFIG, {
@@ -769,7 +1131,7 @@ export default function Home() {
         devLog(`Fetching stock attempt ${attempt}/${maxRetries}`);
         
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 30 second timeout
         
         const res = await fetch(API_URLS.STOCK, {
           method: 'GET',
@@ -876,6 +1238,39 @@ export default function Home() {
           setName={setName}
           note={note}
           setNote={setNote}
+          orderType={orderType}
+          setOrderType={(nextOrderType) => {
+            setOrderType(nextOrderType);
+            setDeliveryLocationError(null);
+            if (nextOrderType === 'pickup') {
+              setDeliveryDriverNote('');
+              setDeliveryWhatsapp('');
+              setDeliveryLocation(null);
+              setDeliveryFee(0);
+              setDeliveryDistanceKm(null);
+              setDeliveryDistanceSource(null);
+              setDeliveryDistanceError(null);
+            }
+          }}
+          deliveryDriverNote={deliveryDriverNote}
+          setDeliveryDriverNote={setDeliveryDriverNote}
+          deliveryWhatsapp={deliveryWhatsapp}
+          setDeliveryWhatsapp={setDeliveryWhatsapp}
+          deliveryLocation={deliveryLocation}
+          onDeliveryLocationConfirm={(location) => {
+            setDeliveryLocation(location);
+            setDeliveryLocationError(null);
+            setDeliveryDistanceError(null);
+          }}
+          deliveryDistanceKm={deliveryDistanceKm}
+          deliveryFee={deliveryFee}
+          deliveryLocationError={deliveryLocationError}
+          deliveryDistanceError={deliveryDistanceError}
+          deliveryDistanceSource={deliveryDistanceSource}
+          isCalculatingDelivery={isCalculatingDelivery}
+          deliveryEnabled={deliveryEnabled}
+          standbyDrivers={standbyDrivers}
+          foodTotal={foodTotal}
           total={total}
           calcDetails={calcDetails}
           showCalcResult={showCalcResult}

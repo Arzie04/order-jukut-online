@@ -8,6 +8,8 @@ import StockDisplay from './StockDisplay';
 import OrderForm from './OrderForm';
 import ComingSoonModal from './ComingSoonModal';
 
+import type { DeliveryLocation, OrderType } from '@/app/lib/delivery';
+
 // Keep the interfaces, they are needed for props
 export interface StockItem {
   id_item: string;
@@ -32,6 +34,19 @@ export interface OrderingPageProps {
   // State from parent
   name: string;
   note: string;
+  orderType: OrderType;
+  deliveryDriverNote: string;
+  deliveryWhatsapp: string;
+  deliveryLocation: DeliveryLocation | null;
+  deliveryDistanceKm: number | null;
+  deliveryFee: number;
+  deliveryLocationError: string | null;
+  deliveryDistanceError: string | null;
+  deliveryDistanceSource: 'road' | 'haversine' | null;
+  isCalculatingDelivery: boolean;
+  deliveryEnabled: boolean;
+  standbyDrivers: number;
+  foodTotal: number;
   total: number;
   calcDetails: string;
   showCalcResult: boolean;
@@ -58,6 +73,10 @@ export interface OrderingPageProps {
   // Handlers from parent
   setName: (name: string) => void;
   setNote: (note: string) => void;
+  setOrderType: (orderType: OrderType) => void;
+  setDeliveryDriverNote: (note: string) => void;
+  setDeliveryWhatsapp: (value: string) => void;
+  onDeliveryLocationConfirm: (location: DeliveryLocation) => void;
   setAlert: (alert: AlertMessage | null) => void;
   calculateTotal: () => void;
   handleOpenConfirm: () => Promise<boolean>;
@@ -68,11 +87,11 @@ export interface OrderingPageProps {
 
 // The component is now much simpler (presentational)
 export default function OrderingPage({
-  name, note, total, calcDetails, showCalcResult, alert, isStoreOpen,
+  name, note, orderType, deliveryDriverNote, deliveryWhatsapp, deliveryLocation, deliveryDistanceKm, deliveryFee, deliveryLocationError, deliveryDistanceError, deliveryDistanceSource, isCalculatingDelivery, deliveryEnabled, standbyDrivers, foodTotal, total, calcDetails, showCalcResult, alert, isStoreOpen,
   statusReason, openingTimeText, closingTimeText, stock, orderItems,
   isSubmitting, isCheckingLatestData, whatsappUrl, whatsappMessage, baseMessage, priceMap, isPackageOutOfStock, isNdjOutOfStock,
   noOrder, currentOrderTotal, onPaymentConfirmed,
-  setName, setNote, setAlert, calculateTotal, handleOpenConfirm,
+  setName, setNote, setOrderType, setDeliveryDriverNote, setDeliveryWhatsapp, onDeliveryLocationConfirm, setAlert, calculateTotal, handleOpenConfirm,
   handleModalSubmit, handleAddOrUpdateItem, handleMovePackageVariant
 }: OrderingPageProps) {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -93,11 +112,12 @@ export default function OrderingPage({
     setShowConfirmModal(false);
   }
   
-  const openConfirm = async () => {
+  const openConfirm = async (): Promise<boolean> => {
       const isValid = await handleOpenConfirm();
       if (isValid) {
         setShowConfirmModal(true);
       }
+      return isValid;
   }
 
   return (
@@ -124,6 +144,22 @@ export default function OrderingPage({
             setName={setName}
             note={note}
             setNote={setNote}
+            orderType={orderType}
+            setOrderType={setOrderType}
+            deliveryDriverNote={deliveryDriverNote}
+            setDeliveryDriverNote={setDeliveryDriverNote}
+            deliveryWhatsapp={deliveryWhatsapp}
+            setDeliveryWhatsapp={setDeliveryWhatsapp}
+            deliveryLocation={deliveryLocation}
+            onDeliveryLocationConfirm={onDeliveryLocationConfirm}
+            deliveryDistanceKm={deliveryDistanceKm}
+            deliveryFee={deliveryFee}
+            deliveryLocationError={deliveryLocationError}
+            deliveryDistanceError={deliveryDistanceError}
+            deliveryDistanceSource={deliveryDistanceSource}
+            isCalculatingDelivery={isCalculatingDelivery}
+            deliveryEnabled={deliveryEnabled}
+            standbyDrivers={standbyDrivers}
             isStoreOpen={isStoreOpen}
             statusReason={statusReason}
             showCalcResult={showCalcResult}
@@ -133,6 +169,7 @@ export default function OrderingPage({
             orderItems={orderItems}
             handleAddOrUpdateItem={handleAddOrUpdateItem}
             handleMovePackageVariant={handleMovePackageVariant}
+            foodTotal={foodTotal}
             total={total}
             priceMap={priceMap}
             isPackageOutOfStock={isPackageOutOfStock}

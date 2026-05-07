@@ -9,6 +9,8 @@ interface CurrentOrderProps {
   order: OrderItem[];
   onUpdateQty: (code: string, newQty: number) => void;
   onMovePackageVariant: (code: string, targetVariant: 'SI' | 'SB') => void;
+  foodTotal: number;
+  deliveryFee: number;
   total: number;
   priceMap: { [key: string]: number };
 }
@@ -87,7 +89,15 @@ function getItemPrice(code: string, priceMap: { [key: string]: number }) {
   return priceMap[parseOrderCode(code).baseCode] || 0;
 }
 
-export default function CurrentOrder({ order, onUpdateQty, onMovePackageVariant, total, priceMap }: CurrentOrderProps) {
+export default function CurrentOrder({
+  order,
+  onUpdateQty,
+  onMovePackageVariant,
+  foodTotal,
+  deliveryFee,
+  total,
+  priceMap,
+}: CurrentOrderProps) {
   if (order.length === 0) {
     return (
       <div className="mt-4 p-4 text-center text-gray-500 bg-gray-50 rounded-lg">
@@ -153,8 +163,20 @@ export default function CurrentOrder({ order, onUpdateQty, onMovePackageVariant,
           </div>
         );
       })}
-      <div className="flex justify-end mt-4 pt-2 border-t border-gray-200">
-        <span className="font-bold text-lg">Total: Rp {total.toLocaleString('id-ID')}</span>
+      <div className="mt-4 pt-3 border-t border-gray-200 space-y-2">
+        <div className="flex justify-between text-sm text-gray-600">
+          <span>Subtotal Makanan</span>
+          <span>Rp {foodTotal.toLocaleString('id-ID')}</span>
+        </div>
+        {deliveryFee > 0 && (
+          <div className="flex justify-between text-sm text-gray-600">
+            <span>Ongkos Kirim</span>
+            <span>Rp {deliveryFee.toLocaleString('id-ID')}</span>
+          </div>
+        )}
+        <div className="flex justify-end">
+          <span className="font-bold text-lg">Total: Rp {total.toLocaleString('id-ID')}</span>
+        </div>
       </div>
     </div>
   );
