@@ -344,16 +344,91 @@ function deleteByStatus(status) {
    FUNGSI UPDATE STATUS (Sinkronisasi)
 ========================= */
 function updateOrderStatus(noOrder, newStatus) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Form Responses 1");
-  const data = sheet.getDataRange().getValues();
-  
-  for (var i = 1; i < data.length; i++) {
-    if (String(data[i][5]) === String(noOrder)) {
-      sheet.getRange(i + 1, 9).setValue(newStatus); 
-      return jsonOutput({ success: true, message: "Status diperbarui ke " + newStatus });
+  try {
+    console.log('🔄 Processing UPDATE_STATUS for order:', noOrder);
+    console.log('   New Status:', newStatus);
+    
+    // VALIDATION: Check if parameters are provided
+    if (!noOrder || String(noOrder).trim() === '') {
+      console.error('❌ VALIDATION FAILED: noOrder is empty or invalid');
+      return jsonOutput({ 
+        success: false, 
+        error: "Nomor pesanan tidak valid atau kosong",
+        received_no_order: noOrder
+      });
     }
+    
+    if (!newStatus || String(newStatus).trim() === '') {
+      console.error('❌ VALIDATION FAILED: newStatus is empty or invalid');
+      return jsonOutput({ 
+        success: false, 
+        error: "Status baru tidak valid atau kosong",
+        received_status: newStatus
+      });
+    }
+    
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Form Responses 1");
+    if (!sheet) {
+      console.error('❌ Sheet "Form Responses 1" not found');
+      return jsonOutput({ success: false, error: "Sheet tidak ditemukan" });
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    console.log('📊 Searching in', data.length - 1, 'rows for order:', noOrder);
+    
+    for (var i = 1; i < data.length; i++) {
+      const rowNoOrder = String(data[i][5]).trim();
+      if (rowNoOrder === String(noOrder).trim()) {
+        console.log('✅ Found order at row', i + 1, '- updating status');
+        console.log('   Current status:', data[i][8]);
+        console.log('   New status:', newStatus);
+        console.log('   Target cell: Row', i + 1, 'Column 9 (I)');
+        
+        // Update status in column I (index 8, but getRange uses 1-based indexing so column 9)
+        sheet.getRange(i + 1, 9).setValue(newStatus);
+        
+        // VALIDATION: Verify the status was actually updated
+        const updatedStatus = sheet.getRange(i + 1, 9).getValue();
+        console.log('   ✅ Status updated. Verification:', updatedStatus);
+        
+        if (String(updatedStatus) !== String(newStatus)) {
+          console.error('   ❌ WARNING: Updated status does not match input!');
+          console.error('   Expected:', newStatus);
+          console.error('   Actual:', updatedStatus);
+        } else {
+          console.log('   ✅ Status verification successful - matches input');
+        }
+        
+        return jsonOutput({ 
+          success: true, 
+          message: "Status diperbarui ke " + newStatus,
+          no_order: noOrder,
+          old_status: data[i][8],
+          new_status: newStatus,
+          updated_row: i + 1
+        });
+      }
+    }
+    
+    console.error('❌ Order not found:', noOrder);
+    console.log('   Total rows searched:', data.length - 1);
+    return jsonOutput({ 
+      success: false, 
+      message: "No Order tidak ditemukan",
+      no_order_searched: noOrder,
+      total_rows: data.length - 1
+    });
+    
+  } catch (error) {
+    console.error('❌ Error in updateOrderStatus:', error.toString());
+    console.error('Stack:', error);
+    return jsonOutput({ 
+      success: false, 
+      error: error.toString(),
+      no_order: noOrder,
+      new_status: newStatus
+    });
   }
-  return jsonOutput({ success: false, message: "No Order tidak ditemukan" });
 }
 
 /* =========================
@@ -669,12 +744,28 @@ function doPost(e) {
         if (body.status_paid === true) {
           sheet.getRange(foundRow + 1, 7).setValue(true);
           console.log('   ✅ Updated payment status (Col G) to TRUE');
-        }
-        
-        // 2. Update Kolom J (index 9) dengan Link Cloudinary
+        }        // 2. Update Kolom J (index 9) dengan Link Cloudinary
+        // FIXED: Kolom J = index 9, tapi getRange menggunakan 1-based indexing, jadi kolom 10
         if (body.cloudinary_url) {
+          console.log('   📤 Attempting to save cloudinary URL to column J (index 9)');
+          console.log('   📤 URL to save:', body.cloudinary_url);
+          console.log('   📤 Target row:', foundRow + 1, 'Target column: 10 (J)');
+          
           sheet.getRange(foundRow + 1, 10).setValue(body.cloudinary_url);
-          console.log('   ✅ Updated cloudinary URL (Col J)');
+          
+          // VALIDATION: Verify the URL was actually saved
+          const savedUrl = sheet.getRange(foundRow + 1, 10).getValue();
+          console.log('   ✅ Cloudinary URL saved to Col J. Verification:', savedUrl);
+          
+          if (String(savedUrl) !== String(body.cloudinary_url)) {
+            console.error('   ❌ WARNING: Saved URL does not match input URL!');
+            console.error('   Expected:', body.cloudinary_url);
+            console.error('   Actual:', savedUrl);
+          } else {
+            console.log('   ✅ URL verification successful - matches input');
+          }
+        } else {
+          console.log('   ⚠️  No cloudinary_url provided in request body');
         }
         
         // 3. BONUS: Jika no_order masih kosong, update Column F juga

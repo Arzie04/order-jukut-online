@@ -32,9 +32,6 @@ const itemCodeToNameMap: { [key: string]: string } = {
   'SB': 'SAMBAL BAWANG', 'NDJ': 'NASI DAUN JERUK', 'NSP': 'NASI PUTIH', 'ATI': 'ATI AMPELA', 'KL': 'KULIT', 
 };
 
-const REGULAR_PACKAGE_DEPENDENCIES = ['NASI PUTIH', 'JUKUT', 'SAMBAL IJO'] as const;
-const NDJ_PACKAGE_DEPENDENCIES = ['NASI DAUN JERUK', 'JUKUT', 'SAMBAL IJO'] as const;
-
 type PackageVariant = 'SI' | 'SB';
 
 interface OrderRow {
@@ -662,7 +659,7 @@ export default function Home() {
 
   const handleOpenConfirm = async (): Promise<boolean> => {
     // Prevent race condition - jika sudah ada proses validasi atau submit yang berjalan
-    if (isCheckingLatestData || isSubmitting) {
+    if (isCheckingLatestData || isSubmitting || !isMinimumOrderMet) {
       return false;
     }
 
@@ -1222,12 +1219,8 @@ export default function Home() {
     return () => clearInterval(intervalId);
   }, [refreshRealtimeData]);
 
-  const getStockAmount = (itemName: string): number | undefined => {
-    return stock.find(item => item.nama_item.toUpperCase() === itemName.toUpperCase())?.stok;
-  };
-
-  const isPackageOutOfStock = REGULAR_PACKAGE_DEPENDENCIES.some(itemName => getStockAmount(itemName) === 0);
-  const isNdjOutOfStock = NDJ_PACKAGE_DEPENDENCIES.some(itemName => getStockAmount(itemName) === 0);
+  const minimumOrderAmount = getMinimumOrderAmount(orderType);
+  const isMinimumOrderMet = foodTotal >= minimumOrderAmount;
 
   return (
     <>
@@ -1293,8 +1286,8 @@ export default function Home() {
           whatsappMessage={whatsappMessage}
           baseMessage={baseMessage}
           priceMap={priceMap}
-          isPackageOutOfStock={isPackageOutOfStock}
-          isNdjOutOfStock={isNdjOutOfStock}
+          minimumOrderAmount={minimumOrderAmount}
+          isMinimumOrderMet={isMinimumOrderMet}
           noOrder={currentOrderNumber}
           currentOrderTotal={currentOrderTotal}
           onPaymentConfirmed={(cloudinaryUrl?: string) => {

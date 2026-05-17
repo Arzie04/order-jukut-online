@@ -28,7 +28,7 @@ export const DELIVERY_ORIGIN = {
   longitude: 110.396489,
 };
 
-export const PICKUP_MINIMUM_ORDER = 10000;
+export const PICKUP_MINIMUM_ORDER = 12000;
 export const DELIVERY_MINIMUM_ORDER = 12000;
 
 const EARTH_RADIUS_KM = 6371;
@@ -59,15 +59,18 @@ export function calculateDistanceKm(
 }
 
 export function calculateBaseDeliveryFee(distanceKm: number) {
-  if (distanceKm < 1) {
-    return 3000;
-  }
+  if (distanceKm < 1) return 6000;
+  if (distanceKm <= 2) return 7000;
 
-  if (distanceKm <= 3) {
-    return 6000;
-  }
+  const extraKmFrom2To7 = Math.max(0, Math.min(distanceKm, 7) - 2);
+  const tierOneSteps = Math.ceil(extraKmFrom2To7);
+  const tierOneFee = tierOneSteps * 2000;
 
-  return 6000 + Math.ceil(distanceKm - 3) * 1000;
+  const extraKmAbove7 = Math.max(0, distanceKm - 7);
+  const tierTwoSteps = Math.ceil(extraKmAbove7);
+  const tierTwoFee = tierTwoSteps * 3000;
+
+  return 7000 + tierOneFee + tierTwoFee;
 }
 
 export function countPackageItems(orderItems: OrderLikeItem[]) {
@@ -77,14 +80,11 @@ export function countPackageItems(orderItems: OrderLikeItem[]) {
 }
 
 export function calculatePackageSurcharge(packageCount: number) {
-  if (packageCount <= 9) {
+  if (packageCount <= 8) {
     return 0;
   }
 
-  // This follows the package-count examples provided in the request.
-  const pairCharge = Math.floor((packageCount - 8) / 2) * 1000;
-  const oddAdjustment = packageCount >= 11 && packageCount % 2 === 1 ? 1000 : 0;
-  return pairCharge + oddAdjustment;
+  return (packageCount - 8) * 2000;
 }
 
 export function getDeliveryPricing({

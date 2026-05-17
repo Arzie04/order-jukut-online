@@ -11,6 +11,47 @@ import { devError } from '@/app/lib/logger';
 import { createSupabaseServerClient } from '@/app/lib/supabase-server';
 import { sendTelegramMessage } from '@/app/lib/telegram';
 
+async function insertDeliveryOrderWithSchemaFallback(
+  supabase: ReturnType<typeof createSupabaseServerClient>,
+  body: DeliveryOrderCreatePayload
+) {
+  const commonPayload = {
+    order_code: body.orderCode,
+    items: body.items,
+    total_price: body.totalPrice,
+    delivery_fee: body.deliveryFee,
+    distance_km: body.distanceKm,
+    maps_link: body.mapsLink,
+    note_driver: body.noteDriver,
+    status: 'waiting_driver',
+  };
+
+  // Try legacy schema first (customer_*), then fallback to requested schema (costumer_*)
+  const attempts = [
+    {
+      ...commonPayload,
+      customer_name: body.customerName,
+      customer_wa: body.customerWhatsapp,
+    },
+    {
+      ...commonPayload,
+      costumer_name: body.customerName,
+      costumer_wa: body.customerWhatsapp,
+    },
+  ];
+
+  let lastError: unknown = null;
+  for (const payload of attempts) {
+    const result = await supabase.from('delivery_orders').insert(payload).select('*').single();
+    if (!result.error && result.data) {
+      return result.data;
+    }
+    lastError = result.error;
+  }
+
+  throw lastError || new Error('Failed to insert delivery order.');
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as DeliveryOrderCreatePayload;
@@ -38,26 +79,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: insertedOrder, error: insertError } = await supabase
-      .from('delivery_orders')
-      .insert({
-        order_code: body.orderCode,
-        customer_name: body.customerName,
-        customer_wa: body.customerWhatsapp,
-        items: body.items,
-        total_price: body.totalPrice,
-        delivery_fee: body.deliveryFee,
-        distance_km: body.distanceKm,
-        maps_link: body.mapsLink,
-        note_driver: body.noteDriver,
-        status: 'waiting_driver',
-      })
-      .select('*')
-      .single();
-
-    if (insertError || !insertedOrder) {
-      throw insertError || new Error('Failed to insert delivery order.');
-    }
+    const insertedOrder = await insertDeliveryOrderWithSchemaFallback(supabase, body);
 
     const orderRow = insertedOrder as DeliveryOrderRow;
     const message = formatDeliveryOrderBroadcast(orderRow);

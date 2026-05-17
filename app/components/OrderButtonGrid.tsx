@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { isMenuDisabledByStock, type StockLikeItem } from '@/app/lib/stock-helpers';
 
 const menuItems = {
   'Paket': [
@@ -47,8 +48,7 @@ const menuItems = {
 
 interface OrderButtonGridProps {
   onAddItem: (code: string) => void;
-  isPackageOutOfStock?: boolean;
-  isNdjOutOfStock?: boolean;
+  stock: StockLikeItem[];
 }
 
 // Mapping from item code to image source
@@ -83,7 +83,7 @@ const imageMap: { [key:string]: string } = {
     'NP KL': '/Foto Produk/Non Paket Kulit.webp',
 };
 
-export default function OrderButtonGrid({ onAddItem, isPackageOutOfStock, isNdjOutOfStock }: OrderButtonGridProps) {
+export default function OrderButtonGrid({ onAddItem, stock }: OrderButtonGridProps) {
   const [activeCategory, setActiveCategory] = useState('Paket');
 
   return (
@@ -109,9 +109,7 @@ export default function OrderButtonGrid({ onAddItem, isPackageOutOfStock, isNdjO
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         {menuItems[activeCategory as keyof typeof menuItems].map((item) => {
           const imageSrc = imageMap[item.code];
-          const isDisabled =
-            (isPackageOutOfStock && activeCategory === 'Paket') ||
-            (isNdjOutOfStock && activeCategory === 'Paket NDJ');
+          const isDisabled = isMenuDisabledByStock(item.code, stock);
           
           if (imageSrc) {
             return (
@@ -120,11 +118,18 @@ export default function OrderButtonGrid({ onAddItem, isPackageOutOfStock, isNdjO
                 key={item.code}
                 onClick={() => onAddItem(item.code)}
                 disabled={isDisabled}
-                className="bg-white/50 border border-white/30 rounded-2xl shadow-sm text-center transition-all duration-150 active:scale-95 active:border-[#D4E157] overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`relative bg-white/50 border border-white/30 rounded-2xl shadow-sm text-center transition-all duration-150 active:scale-95 active:border-[#D4E157] overflow-hidden group ${
+                  isDisabled ? 'opacity-55 grayscale-[0.45] saturate-50 cursor-not-allowed' : ''
+                }`}
               >
                 <div className="w-full h-24 bg-black/10">
                   <img src={imageSrc} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" />
                 </div>
+                {isDisabled && (
+                  <div className="absolute left-2 top-2 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow">
+                    Stok Habis
+                  </div>
+                )}
                 <div className="p-2">
                   <p className="text-gray-800 font-semibold text-xs md:text-sm">{item.name}</p>
                 </div>
@@ -138,8 +143,15 @@ export default function OrderButtonGrid({ onAddItem, isPackageOutOfStock, isNdjO
               key={item.code}
               onClick={() => onAddItem(item.code)}
               disabled={isDisabled}
-              className="bg-white/50 hover:bg-white/70 text-gray-800 font-semibold py-3 px-3 border border-white/30 rounded-xl shadow-sm text-xs md:text-sm transition-all duration-100 active:scale-95 active:border-[#D4E157] flex flex-col items-center justify-center text-center h-full min-h-[60px] disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`relative bg-white/50 hover:bg-white/70 text-gray-800 font-semibold py-3 px-3 border border-white/30 rounded-xl shadow-sm text-xs md:text-sm transition-all duration-100 active:scale-95 active:border-[#D4E157] flex flex-col items-center justify-center text-center h-full min-h-[60px] ${
+                isDisabled ? 'opacity-55 grayscale-[0.45] saturate-50 cursor-not-allowed' : ''
+              }`}
             >
+              {isDisabled && (
+                <span className="mb-1 inline-flex rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                  Habis
+                </span>
+              )}
               {item.name}
             </button>
           );

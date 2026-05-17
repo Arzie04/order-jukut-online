@@ -10,13 +10,15 @@ export interface DriverRow {
   nomor_wa: string | null;
   is_verified: boolean | null;
   status: DriverStatus | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 export interface DeliveryOrderRow {
   id: string;
   order_code: string | null;
-  customer_name: string | null;
-  customer_wa: string | null;
+  costumer_name: string | null;
+  costumer_wa: string | null;
   items: string | null;
   total_price: number | null;
   delivery_fee: number | null;
@@ -25,6 +27,8 @@ export interface DeliveryOrderRow {
   note_driver: string | null;
   status: DeliveryOrderStatus | null;
   assigned_driver: string | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 export interface DeliveryOrderCreatePayload {
@@ -99,7 +103,7 @@ export function formatDeliveryOrderBroadcast(order: DeliveryOrderRow) {
     '🚨 ORDER BARU',
     order.order_code || '-',
     '',
-    `Nama: ${order.customer_name || '-'}`,
+    `Nama: ${order.costumer_name || '-'}`,
     `Pesanan:\n${order.items || '-'}`,
     `Jarak: ${Number(order.distance_km || 0).toFixed(2)} km`,
     `ETA: ${etaMinutes} menit`,

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { verifyPayment, confirmPayment } from '../lib/payment-verification';
 
 interface AlertModalProps {
@@ -39,7 +39,9 @@ export default function AlertModal({
   const [retryCount, setRetryCount] = useState(0);
   const [isSubmittingManual, setIsSubmittingManual] = useState(false);
   const [savedCloudinaryUrl, setSavedCloudinaryUrl] = useState<string>('');
+  const [showContinueGuide, setShowContinueGuide] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const continueSectionRef = useRef<HTMLDivElement>(null);
   const shouldShowPaymentIssueAdminContact =
     type === 'success' &&
     noOrder &&
@@ -47,6 +49,20 @@ export default function AlertModal({
     verificationResult &&
     !verificationResult.success;
   const showGenericErrorHelp = type === 'danger' || type === 'warning';
+
+  useEffect(() => {
+    if (!(type === 'success' && paymentConfirmed && whatsappUrl && whatsappMessage)) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      continueSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setShowContinueGuide(true);
+      setTimeout(() => setShowContinueGuide(false), 3500);
+    }, 220);
+
+    return () => clearTimeout(timer);
+  }, [paymentConfirmed, type, whatsappMessage, whatsappUrl]);
   
   const handleCopyMessage = async () => {
     if (whatsappMessage) {
@@ -297,6 +313,13 @@ export default function AlertModal({
                 {type === 'success' ? 'Pesanan Berhasil! ✨' : 'Pemberitahuan'}
             </h2>
           </div>
+
+          {type === 'success' && noOrder && (
+            <div className="mb-5 rounded-2xl border-2 border-green-300 bg-white px-4 py-4 text-center shadow-md">
+              <div className="text-xs font-bold uppercase tracking-wider text-green-700">Nomor Order</div>
+              <div className="mt-1 text-4xl font-extrabold tracking-wide text-green-800 md:text-5xl">{noOrder}</div>
+            </div>
+          )}
           
           <p className="text-gray-700 mb-6 md:mb-8 text-center leading-relaxed text-sm md:text-base lg:text-base font-semibold">
             {message}
@@ -328,7 +351,7 @@ export default function AlertModal({
           {type === 'success' && noOrder && totalAmount != null && (
             <div className="mb-6 md:mb-8 space-y-4 md:space-y-5 lg:space-y-4">
               <div className="bg-gradient-to-r from-orange-100 to-yellow-100 border-2 border-orange-400 rounded-xl md:rounded-2xl p-4 md:p-6 lg:p-6 shadow-md">
-                <p className="text-xs md:text-sm lg:text-sm font-bold text-orange-900 mb-3 md:mb-4 lg:mb-3">🔍 VERIFIKASI PEMBAYARAN OTOMATIS:</p>
+                <p className="text-xs md:text-sm lg:text-sm font-bold text-orange-900 mb-3 md:mb-4 lg:mb-3">Langkah 2 · Upload Bukti Pembayaran</p>
                 <p className="text-xs md:text-sm lg:text-sm text-orange-800 font-semibold leading-snug">
                   Upload bukti pembayaran QRIS untuk verifikasi otomatis. Sistem akan melakukan verifikasi otomatis dan memverifikasi jumlah pembayaran.
                 </p>
@@ -336,10 +359,10 @@ export default function AlertModal({
 
               {/* Instruksi Jelas */}
               <div className="bg-gradient-to-r from-blue-100 to-cyan-100 border-2 border-blue-400 rounded-xl md:rounded-2xl p-4 md:p-6 lg:p-6 shadow-md">
-                <p className="text-xs md:text-sm lg:text-sm font-bold text-blue-900 mb-3 md:mb-4 lg:mb-3">📝 LANGKAH SELANJUTNYA:</p>
+                <p className="text-xs md:text-sm lg:text-sm font-bold text-blue-900 mb-3 md:mb-4 lg:mb-3">Urutan Proses</p>
                 <ol className="text-xs md:text-sm lg:text-sm text-blue-800 space-y-2 md:space-y-2.5 list-decimal list-inside font-semibold leading-snug">
                   <li>Upload <strong>bukti pembayaran QRIS</strong> (screenshot bukti pembayaran yang jelas)</li>
-                  <li>Klik tombol <strong>"TERUSKAN PESANAN"</strong> di bawah</li>
+                  <li>Klik tombol <strong>"Teruskan Pesanan"</strong> setelah verifikasi sukses</li>
                   <li>Kirim bukti pembayaran ke admin bersama pesan template yang ada jika link bukti pembayaran tidak tersedia</li>
                 </ol>
               </div>
@@ -357,13 +380,13 @@ export default function AlertModal({
                 />
                 <label
                   htmlFor="payment-proof"
-                  className={`block w-full px-6 md:px-8 lg:px-8 py-4 md:py-5 lg:py-5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl md:rounded-2xl transition-all font-bold text-center shadow-2xl hover:shadow-2xl active:scale-95 flex items-center justify-center gap-3 md:gap-4 lg:gap-3 group relative overflow-hidden cursor-pointer ${
+                  className={`block w-full px-6 md:px-8 lg:px-8 py-5 md:py-6 lg:py-6 bg-gradient-to-r from-fuchsia-600 to-indigo-700 text-white rounded-2xl transition-all font-extrabold text-center shadow-2xl hover:shadow-2xl active:scale-[0.98] hover:scale-[1.01] flex items-center justify-center gap-3 md:gap-4 lg:gap-3 group relative overflow-hidden cursor-pointer ${
                     isVerifying || paymentConfirmed ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
                 >
                   <span className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl md:rounded-2xl"></span>
                   <span className="text-2xl md:text-3xl lg:text-3xl group-hover:scale-125 transition-transform relative z-10">
-                    {isVerifying ? '⏳' : paymentConfirmed ? '✅' : '📤'}
+                    {isVerifying ? '⏳' : paymentConfirmed ? '✅' : '⬆️'}
                   </span>
                   <span className="text-base md:text-lg lg:text-lg font-bold relative z-10">
                     {isVerifying ? 'Sedang Memverifikasi...' : paymentConfirmed ? 'Pembayaran Terverifikasi' : 'Upload Bukti Pembayaran'}
@@ -496,9 +519,17 @@ ${savedCloudinaryUrl ? 'Bukti Pembayaran :' : 'Konfirmasi Manual By Chat'}`;
           )}
 
           {type === 'success' && whatsappUrl && whatsappMessage && (
-            <div className="mb-6 md:mb-8 space-y-4 md:space-y-5 lg:space-y-4">
+            <div ref={continueSectionRef} className="mb-6 md:mb-8 space-y-4 md:space-y-5 lg:space-y-4">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-center text-sm font-bold text-emerald-800">
+            Langkah 3 · Teruskan Pesanan
+          </div>
+          {showContinueGuide && (
+            <div className="text-center text-emerald-700 animate-bounce">
+              <div className="text-2xl">⬇️</div>
+            </div>
+          )}
           {/* WhatsApp Button dengan Pulse Border */}
-          <div className="pulse-border rounded-xl md:rounded-2xl transition-all">
+          <div className={`pulse-border rounded-xl md:rounded-2xl transition-all ${showContinueGuide ? 'ring-4 ring-emerald-300/70' : ''}`}>
             <button
               onClick={paymentConfirmed ? handleTeruskanPesanan : undefined}
               className={`shockwave-button blink-button w-full px-6 md:px-8 lg:px-8 py-4 md:py-5 lg:py-5 rounded-xl md:rounded-2xl transition-all font-bold text-center shadow-2xl hover:shadow-2xl active:scale-95 flex items-center justify-center gap-3 md:gap-4 lg:gap-3 group relative overflow-hidden ${
@@ -512,7 +543,7 @@ ${savedCloudinaryUrl ? 'Bukti Pembayaran :' : 'Konfirmasi Manual By Chat'}`;
                 {paymentConfirmed ? '💬' : '🔒'}
               </span>
               <span className="text-base md:text-lg lg:text-lg font-bold relative z-10">
-                {paymentConfirmed ? 'TERUSKAN PESANAN' : 'VERIFIKASI PEMBAYARAN TERLEBIH DAHULU'}
+                {paymentConfirmed ? 'Teruskan Pesanan' : 'Verifikasi Pembayaran Terlebih Dahulu'}
               </span>
             </button>
           </div>

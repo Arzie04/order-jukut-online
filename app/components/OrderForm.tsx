@@ -12,6 +12,10 @@ interface OrderItem {
   code: string;
   qty: number;
 }
+interface StockItem {
+  nama_item: string;
+  stok: number;
+}
 
 interface OrderFormProps {
   name: string;
@@ -49,8 +53,9 @@ interface OrderFormProps {
   foodTotal: number;
   total: number;
   priceMap: { [key: string]: number };
-  isPackageOutOfStock?: boolean;
-  isNdjOutOfStock?: boolean;
+  minimumOrderAmount: number;
+  isMinimumOrderMet: boolean;
+  stock: StockItem[];
 }
 
 export default function OrderForm({
@@ -86,9 +91,10 @@ export default function OrderForm({
   foodTotal,
   total,
   priceMap,
-  isPackageOutOfStock,
-  isNdjOutOfStock,
   isCheckingLatestData,
+  minimumOrderAmount,
+  isMinimumOrderMet,
+  stock,
 }: OrderFormProps) {
   const [isMapPickerOpen, setIsMapPickerOpen] = useState(false);
 
@@ -123,8 +129,7 @@ export default function OrderForm({
           
           <OrderButtonGrid
             onAddItem={handleAddItem}
-            isPackageOutOfStock={isPackageOutOfStock}
-            isNdjOutOfStock={isNdjOutOfStock}
+            stock={stock}
           />
         </div>
       </div>
@@ -337,15 +342,26 @@ export default function OrderForm({
           <button
             type="button"
             onClick={handleOpenConfirm}
-            disabled={!isStoreOpen || isCheckingLatestData}
+            disabled={!isStoreOpen || isCheckingLatestData || !isMinimumOrderMet}
             className={`w-full py-4 font-bold text-lg rounded-xl transition shadow-lg active:scale-[0.98] block ${
-              isStoreOpen && !isCheckingLatestData
+              !isMinimumOrderMet
+                ? 'bg-red-600 text-white cursor-not-allowed'
+                : isStoreOpen && !isCheckingLatestData
                 ? 'bg-[#2E7D32] text-white hover:opacity-90'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
           >
-            {isCheckingLatestData ? 'Mengecek Stok & Batas Pesanan Terbaru...' : 'Pesan Sekarang'}
+            {!isMinimumOrderMet
+              ? 'Minimum transaksi Rp12.000'
+              : isCheckingLatestData
+              ? 'Mengecek Stok & Batas Pesanan Terbaru...'
+              : 'Pesan Sekarang'}
           </button>
+          {!isMinimumOrderMet && (
+            <div className="mt-2 text-center text-sm text-red-600 font-semibold">
+              {`Minimum transaksi Rp${minimumOrderAmount.toLocaleString('id-ID')}`}
+            </div>
+          )}
           {!isStoreOpen && (
             <div className="mt-2 text-center text-sm text-red-600 font-semibold">
               {statusReason ||

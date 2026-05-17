@@ -29,6 +29,7 @@ export default function ConfirmationModal({
   const [buttonCountdown, setButtonCountdown] = useState(15);
   const [buttonEnabled, setButtonEnabled] = useState(false);
   const [qrisInfo, setQrisInfo] = useState<any>(null);
+  const [showScreenshotConfirm, setShowScreenshotConfirm] = useState(false);
 
   useEffect(() => {
     if (!modalRef.current) return;
@@ -41,6 +42,7 @@ export default function ConfirmationModal({
       setQrisCountdown(10);
       setButtonCountdown(15);
       setButtonEnabled(false);
+      setShowScreenshotConfirm(false);
       // Generate QRIS dinamis berdasarkan nominal
       const info = generateQrisInfo(total);
       setQrisInfo(info);
@@ -88,6 +90,10 @@ export default function ConfirmationModal({
     }
   };
 
+  const handleSubmitWithConfirmation = () => {
+    setShowScreenshotConfirm(true);
+  };
+
   return (
     <div
       ref={modalRef}
@@ -120,21 +126,26 @@ export default function ConfirmationModal({
               {/* QRIS Display Section */}
               {showQris ? (
                 <div className="space-y-3 md:space-y-4 lg:space-y-4">
+                  <div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm">
+                    <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Langkah 1 · Bayar QRIS</p>
+                    <p className="mt-1 text-sm text-gray-600">Scan QR di bawah, lalu bayar sesuai nominal.</p>
+                  </div>
+
                   {/* Nominal at Top - Highlighted */}
                   {qrisInfo && (
-                    <div className="bg-gradient-to-r from-emerald-400 to-green-500 rounded-2xl md:rounded-3xl p-4 md:p-5 lg:p-5 shadow-lg transform">
-                      <p className="text-xs md:text-sm lg:text-sm text-white font-bold uppercase tracking-wider opacity-90">💰 Total Bayar</p>
-                      <p className="text-2xl md:text-3xl lg:text-4xl font-black text-white drop-shadow-lg mt-1 md:mt-2">Rp {qrisInfo.amountFormatted}</p>
+                    <div className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-500 to-green-600 p-4 md:p-5 shadow-lg">
+                      <p className="text-xs text-emerald-100 font-bold uppercase tracking-wider">Total Pembayaran</p>
+                      <p className="text-3xl md:text-4xl font-black text-white mt-1">Rp {qrisInfo.amountFormatted}</p>
                     </div>
                   )}
 
                   {/* QR Code Container - Compact */}
                   <div className="flex justify-center">
-                    <div className="bg-white/97 backdrop-blur p-3 md:p-4 lg:p-4 rounded-2xl md:rounded-3xl shadow-xl border-4 border-green-300/60">
+                    <div className="bg-white p-4 md:p-5 rounded-3xl shadow-xl border border-gray-200">
                       {qrisInfo?.qrisCode ? (
                         <QRCodeSVG
                           value={qrisInfo.qrisCode}
-                          size={240}
+                          size={230}
                           level="H"
                           includeMargin={true}
                         />
@@ -151,14 +162,14 @@ export default function ConfirmationModal({
                   {/* Reference & Timestamp - Compact */}
                   {qrisInfo && (
                     <div className="space-y-2 md:space-y-3 lg:space-y-3">
-                      <div className="bg-blue-50/80 border border-blue-200 rounded-lg md:rounded-xl p-3 md:p-4 lg:p-4">
-                        <p className="text-[10px] md:text-xs lg:text-xs text-blue-700 font-bold uppercase mb-1 md:mb-1">📋 No. Ref</p>
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 md:p-4">
+                        <p className="text-[10px] md:text-xs text-slate-700 font-bold uppercase mb-1">Nomor Referensi</p>
                         <p className="text-xs md:text-sm lg:text-sm font-mono font-bold text-blue-600 select-all cursor-pointer break-all">
                           {qrisInfo.reference}
                         </p>
                       </div>
-                      <div className="text-[10px] md:text-xs lg:text-xs text-gray-600 font-semibold">
-                        ⏰ {qrisInfo.timestamp}
+                      <div className="text-[10px] md:text-xs text-gray-600 font-semibold">
+                        Dibuat: {qrisInfo.timestamp}
                       </div>
                     </div>
                   )}
@@ -206,7 +217,7 @@ export default function ConfirmationModal({
           </button>
           {isStoreOpen && (
             <button
-              onClick={onSubmit}
+              onClick={handleSubmitWithConfirmation}
               disabled={!buttonEnabled || isSubmitting}
               className={`px-6 md:px-9 lg:px-10 py-2.5 md:py-3 lg:py-3 rounded-xl md:rounded-xl font-bold transition shadow-lg text-xs md:text-sm lg:text-sm active:scale-95 ${
                 buttonEnabled && !isSubmitting
@@ -223,6 +234,34 @@ export default function ConfirmationModal({
           )}
         </div>
       </div>
+
+      {showScreenshotConfirm && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-white/40 bg-white p-5 text-center shadow-2xl">
+            <div className="text-3xl">⚠️</div>
+            <div className="mt-2 text-sm font-bold text-gray-800">
+              Pastikan sudah menyimpan atau screenshot bukti pembayaran dengan jelas.
+            </div>
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => setShowScreenshotConfirm(false)}
+                className="flex-1 rounded-xl border border-gray-300 bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-700"
+              >
+                Kembali
+              </button>
+              <button
+                onClick={() => {
+                  setShowScreenshotConfirm(false);
+                  onSubmit();
+                }}
+                className="flex-1 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white shadow"
+              >
+                Sudah Screenshot
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

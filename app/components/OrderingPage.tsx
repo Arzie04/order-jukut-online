@@ -7,6 +7,7 @@ import TutorialModal from './TutorialModal';
 import StockDisplay from './StockDisplay';
 import OrderForm from './OrderForm';
 import ComingSoonModal from './ComingSoonModal';
+import OrderStatusTracker from './OrderStatusTracker';
 
 import type { DeliveryLocation, OrderType } from '@/app/lib/delivery';
 
@@ -63,8 +64,8 @@ export interface OrderingPageProps {
   whatsappMessage: string;
   baseMessage?: string;
   priceMap: { [key: string]: number };
-  isPackageOutOfStock?: boolean;
-  isNdjOutOfStock?: boolean;
+  minimumOrderAmount: number;
+  isMinimumOrderMet: boolean;
   // New props for payment verification
   noOrder?: string;
   currentOrderTotal?: number;
@@ -89,7 +90,8 @@ export interface OrderingPageProps {
 export default function OrderingPage({
   name, note, orderType, deliveryDriverNote, deliveryWhatsapp, deliveryLocation, deliveryDistanceKm, deliveryFee, deliveryLocationError, deliveryDistanceError, deliveryDistanceSource, isCalculatingDelivery, deliveryEnabled, standbyDrivers, foodTotal, total, calcDetails, showCalcResult, alert, isStoreOpen,
   statusReason, openingTimeText, closingTimeText, stock, orderItems,
-  isSubmitting, isCheckingLatestData, whatsappUrl, whatsappMessage, baseMessage, priceMap, isPackageOutOfStock, isNdjOutOfStock,
+  isSubmitting, isCheckingLatestData, whatsappUrl, whatsappMessage, baseMessage, priceMap,
+  minimumOrderAmount, isMinimumOrderMet,
   noOrder, currentOrderTotal, onPaymentConfirmed,
   setName, setNote, setOrderType, setDeliveryDriverNote, setDeliveryWhatsapp, onDeliveryLocationConfirm, setAlert, calculateTotal, handleOpenConfirm,
   handleModalSubmit, handleAddOrUpdateItem, handleMovePackageVariant
@@ -139,6 +141,7 @@ export default function OrderingPage({
         {/* Adjusted content container with glassmorphism */}
         <div className="bg-white/50 backdrop-blur-lg md:rounded-2xl shadow-lg p-4 md:p-6">
           <StockDisplay stock={stock} />
+          <OrderStatusTracker />
           <OrderForm
             name={name}
             setName={setName}
@@ -172,9 +175,10 @@ export default function OrderingPage({
             foodTotal={foodTotal}
             total={total}
             priceMap={priceMap}
-            isPackageOutOfStock={isPackageOutOfStock}
-            isNdjOutOfStock={isNdjOutOfStock}
             isCheckingLatestData={isCheckingLatestData}
+            minimumOrderAmount={minimumOrderAmount}
+            isMinimumOrderMet={isMinimumOrderMet}
+            stock={stock}
           />
         </div>
       </div>
