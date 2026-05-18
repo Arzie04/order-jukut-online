@@ -42,7 +42,12 @@ async function insertDeliveryOrderWithSchemaFallback(
 
   let lastError: unknown = null;
   for (const payload of attempts) {
-    const result = await supabase.from('delivery_orders').insert(payload).select('*').single();
+    // Supabase generated Insert type only matches one DB column naming; runtime may use customer_* or costumer_*.
+    const result = await supabase
+      .from('delivery_orders')
+      .insert(payload as Record<string, string | number>)
+      .select('*')
+      .single();
     if (!result.error && result.data) {
       return result.data;
     }
