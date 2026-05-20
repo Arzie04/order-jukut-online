@@ -45,6 +45,7 @@ interface OrderFormProps {
   calculateTotal: () => void;
   handleOpenConfirm: () => Promise<boolean>;
   isCheckingLatestData?: boolean;
+  isSubmitting?: boolean;
   
   // New props for button-based UI
   orderItems: OrderItem[];
@@ -92,6 +93,7 @@ export default function OrderForm({
   total,
   priceMap,
   isCheckingLatestData,
+  isSubmitting,
   minimumOrderAmount,
   isMinimumOrderMet,
   stock,
@@ -342,17 +344,19 @@ export default function OrderForm({
           <button
             type="button"
             onClick={handleOpenConfirm}
-            disabled={!isStoreOpen || isCheckingLatestData || !isMinimumOrderMet}
+            disabled={!isStoreOpen || isCheckingLatestData || isSubmitting || !isMinimumOrderMet}
             className={`w-full py-4 font-bold text-lg rounded-xl transition shadow-lg active:scale-[0.98] block ${
               !isMinimumOrderMet
                 ? 'bg-red-600 text-white cursor-not-allowed'
-                : isStoreOpen && !isCheckingLatestData
+                : isStoreOpen && !isCheckingLatestData && !isSubmitting
                 ? 'bg-[#2E7D32] text-white hover:opacity-90'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
           >
             {!isMinimumOrderMet
               ? 'Minimum transaksi Rp12.000'
+              : isSubmitting
+              ? 'Sedang memproses pesanan...'
               : isCheckingLatestData
               ? 'Mengecek Stok & Batas Pesanan Terbaru...'
               : 'Pesan Sekarang'}

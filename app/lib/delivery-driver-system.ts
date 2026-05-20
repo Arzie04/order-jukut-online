@@ -41,6 +41,7 @@ export interface DeliveryOrderCreatePayload {
   distanceKm: number;
   mapsLink: string;
   noteDriver: string;
+  submissionKey?: string;
 }
 
 export interface DriverRegistrationSession {

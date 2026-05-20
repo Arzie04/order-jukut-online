@@ -175,6 +175,7 @@ export default function OrderingPage({
             foodTotal={foodTotal}
             total={total}
             priceMap={priceMap}
+            isSubmitting={isSubmitting}
             isCheckingLatestData={isCheckingLatestData}
             minimumOrderAmount={minimumOrderAmount}
             isMinimumOrderMet={isMinimumOrderMet}

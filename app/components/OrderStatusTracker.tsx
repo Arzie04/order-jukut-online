@@ -53,8 +53,8 @@ export default function OrderStatusTracker() {
 
   return (
     <div className="mb-6 rounded-2xl border border-amber-100 bg-gradient-to-b from-white to-amber-50/40 p-4 shadow-md">
-      <h3 className="text-base font-bold text-gray-800">Cek Status Order</h3>
-      <p className="mt-1 text-xs text-gray-600">Lacak progres pesananmu seperti cek resi.</p>
+      <h3 className="text-base font-bold text-gray-800">Cek Status Pesanan</h3>
+      <p className="mt-1 text-xs text-gray-600">Lacak progres pesananmu dengan memasukan nomor orderanmu!.</p>
 
       <form onSubmit={handleSubmit} className="mt-3 space-y-3">
         <div className="flex items-center overflow-hidden rounded-lg border border-gray-300">

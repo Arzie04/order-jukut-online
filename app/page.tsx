@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import OrderingPage from './components/OrderingPage';
 import LoadingScreen from './components/LoadingScreen';
 import { API_URLS } from './lib/api-config';
@@ -48,6 +48,82 @@ interface ConfigOrdersFetchResult {
 interface RealtimeRefreshResult {
   configResult: ConfigOrdersFetchResult;
   stockData: StockItem[] | null;
+}
+
+interface ActiveSubmissionRecord {
+  key: string;
+  fingerprint: string;
+  createdAt: string;
+  orderNumber?: string;
+  status: 'pending' | 'success';
+}
+
+const ACTIVE_SUBMISSION_STORAGE_KEY = 'jukut_active_submission';
+const ACTIVE_SUBMISSION_TTL_MS = 15 * 60 * 1000;
+
+function createSubmissionFingerprint(payload: {
+  name: string;
+  orderType: OrderType;
+  orderString: string;
+  note: string;
+  total: number;
+  deliveryWhatsapp: string;
+  deliveryMapsLink: string;
+  deliveryDriverNote: string;
+}) {
+  return JSON.stringify({
+    name: payload.name.trim(),
+    orderType: payload.orderType,
+    orderString: payload.orderString.trim(),
+    note: payload.note.trim(),
+    total: payload.total,
+    deliveryWhatsapp: payload.deliveryWhatsapp.trim(),
+    deliveryMapsLink: payload.deliveryMapsLink.trim(),
+    deliveryDriverNote: payload.deliveryDriverNote.trim(),
+  });
+}
+
+function createSubmissionKey() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  return `jukut-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function readActiveSubmissionRecord(fingerprint: string): ActiveSubmissionRecord | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const rawRecord = window.localStorage.getItem(ACTIVE_SUBMISSION_STORAGE_KEY);
+    if (!rawRecord) {
+      return null;
+    }
+
+    const parsedRecord = JSON.parse(rawRecord) as ActiveSubmissionRecord;
+    const createdAtMs = new Date(parsedRecord.createdAt).getTime();
+    const isExpired = !createdAtMs || (Date.now() - createdAtMs) > ACTIVE_SUBMISSION_TTL_MS;
+
+    if (isExpired || parsedRecord.fingerprint !== fingerprint) {
+      window.localStorage.removeItem(ACTIVE_SUBMISSION_STORAGE_KEY);
+      return null;
+    }
+
+    return parsedRecord;
+  } catch {
+    window.localStorage.removeItem(ACTIVE_SUBMISSION_STORAGE_KEY);
+    return null;
+  }
+}
+
+function writeActiveSubmissionRecord(record: ActiveSubmissionRecord) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(ACTIVE_SUBMISSION_STORAGE_KEY, JSON.stringify(record));
 }
 
 function parseOrderCode(code: string) {
@@ -147,6 +223,7 @@ export default function Home() {
   const [currentOrderNumber, setCurrentOrderNumber] = useState<string>('');
   const [paymentProofUrl, setPaymentProofUrl] = useState<string>('');
   const [currentOrderTotal, setCurrentOrderTotal] = useState<number>(0);
+  const submissionLockRef = useRef(false);
 
   useEffect(() => {
     if (DEVELOPER_MODE) {
@@ -659,7 +736,7 @@ export default function Home() {
 
   const handleOpenConfirm = async (): Promise<boolean> => {
     // Prevent race condition - jika sudah ada proses validasi atau submit yang berjalan
-    if (isCheckingLatestData || isSubmitting || !isMinimumOrderMet) {
+    if (submissionLockRef.current || isCheckingLatestData || isSubmitting || !isMinimumOrderMet) {
       return false;
     }
 
@@ -674,6 +751,12 @@ export default function Home() {
   };
 
   const handleModalSubmit = async () => {
+    if (submissionLockRef.current || isSubmitting) {
+      devWarn('[SUBMIT] Duplicate submit blocked on client lock');
+      return;
+    }
+
+    submissionLockRef.current = true;
     setIsSubmitting(true);
     setAlert(null);
 
@@ -697,16 +780,27 @@ export default function Home() {
         note.trim(),
         orderType === 'delivery' && deliveryWhatsapp.trim() ? `WA: ${deliveryWhatsapp.trim()}` : '',
       ].filter(Boolean).join(' | ');
-      const deliveryFormDriverNote = [
-        deliveryDriverNote.trim(),
-        deliveryWhatsapp.trim() ? `WA: ${deliveryWhatsapp.trim()}` : '',
-      ].filter(Boolean).join('\n');
-      const deliveryStatus = orderType === 'delivery'
-        ? [
-            'Delivery',
-            deliveryDistanceSource === 'road' ? 'Rute Jalan' : 'Fallback Haversine',
-          ].join(' - ')
-        : 'Pickup';
+      const submissionFingerprint = createSubmissionFingerprint({
+        name: submissionName,
+        orderType,
+        orderString,
+        note: legacyNote,
+        total,
+        deliveryWhatsapp,
+        deliveryMapsLink: deliveryLocation?.mapsLink || '',
+        deliveryDriverNote,
+      });
+      const existingSubmission = readActiveSubmissionRecord(submissionFingerprint);
+      const submissionKey = existingSubmission?.key || createSubmissionKey();
+      const submissionCreatedAt = existingSubmission?.createdAt || new Date().toISOString();
+
+      writeActiveSubmissionRecord({
+        key: submissionKey,
+        fingerprint: submissionFingerprint,
+        createdAt: submissionCreatedAt,
+        orderNumber: existingSubmission?.orderNumber,
+        status: existingSubmission?.status || 'pending',
+      });
 
       // Step 1: Create order on backend so number generation and insert
       // happen in one locked operation.
@@ -722,6 +816,8 @@ export default function Home() {
           pesanan: orderString,
           note: legacyNote,
           total,
+          submissionKey,
+          clientSubmittedAt: submissionCreatedAt,
         })
       });
 
@@ -734,55 +830,15 @@ export default function Home() {
 
       devLog('[ORDER] Order created with number:', orderNumber);
       setCurrentOrderNumber(orderNumber);
-
-      try {
-        await fetch(API_URLS.SUBMIT_GOOGLE_FORM, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            nama: submissionName,
-            noOrder: orderNumber,
-            pesanan: orderString,
-            note: legacyNote,
-            total,
-          }),
-        });
-      } catch (legacyFormError) {
-        devError('[GOOGLE_FORM][LEGACY] Silent submit failed:', legacyFormError);
-      }
+      writeActiveSubmissionRecord({
+        key: submissionKey,
+        fingerprint: submissionFingerprint,
+        createdAt: submissionCreatedAt,
+        orderNumber,
+        status: 'success',
+      });
 
       if (orderType === 'delivery' && deliveryLocation) {
-        const deliveryOrderSummary = [
-          ...orderLines,
-          deliveryWhatsapp.trim() ? `No. WA = ${deliveryWhatsapp.trim()}` : '',
-          `Total = ${total.toLocaleString('id-ID')}`,
-        ].filter(Boolean).join('\n');
-
-        try {
-          await fetch(API_URLS.SUBMIT_GOOGLE_FORM, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              mode: 'delivery',
-              nama: submissionName,
-              noOrder: orderNumber,
-              pesanan: deliveryOrderSummary,
-              note: legacyNote,
-              total,
-              statusOrder: deliveryStatus,
-              mapsLink: deliveryLocation.mapsLink,
-              driverNote: deliveryFormDriverNote,
-              whatsappNumber: deliveryWhatsapp.trim(),
-            }),
-          });
-        } catch (formError) {
-          devError('[GOOGLE_FORM][DELIVERY] Silent submit failed:', formError);
-        }
-
         const deliveryOrderResponse = await fetch(API_URLS.DELIVERY_ORDERS, {
           method: 'POST',
           headers: {
@@ -798,6 +854,7 @@ export default function Home() {
             distanceKm: deliveryDistanceKm,
             mapsLink: deliveryLocation.mapsLink,
             noteDriver: deliveryDriverNote.trim(),
+            submissionKey,
           }),
         });
 
@@ -982,6 +1039,7 @@ export default function Home() {
       });
     } finally {
       setIsSubmitting(false);
+      submissionLockRef.current = false;
     }
   };
 

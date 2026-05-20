@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createHash } from 'crypto';
 
 import { GOOGLE_APPS_SCRIPT_URL } from '../../../lib/api-config';
 import { devError, devLog } from '../../../lib/logger';
@@ -8,6 +9,8 @@ interface InsertOrderBody {
   pesanan: string;
   note: string;
   total: number;
+  submissionKey?: string;
+  clientSubmittedAt?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -41,7 +44,18 @@ export async function POST(request: NextRequest) {
       pesanan: body.pesanan.trim(),
       note: body.note.trim(),
       total: body.total,
-      status: 'terbaru'
+      status: 'terbaru',
+      submission_key: String(body.submissionKey || '').trim(),
+      client_submitted_at: String(body.clientSubmittedAt || '').trim(),
+      request_hash: createHash('sha256')
+        .update(JSON.stringify({
+          nama: body.nama.trim(),
+          pesanan: body.pesanan.trim(),
+          note: body.note.trim(),
+          total: body.total,
+          submissionKey: String(body.submissionKey || '').trim(),
+        }))
+        .digest('hex'),
     };
 
     devLog('[INSERT_ORDER] Sending to Apps Script:', appsScriptPayload);
@@ -101,7 +115,8 @@ export async function POST(request: NextRequest) {
       success: true,
       message: responseData.message,
       no_order: responseData.no_order,
-      timestamp: responseData.timestamp
+      timestamp: responseData.timestamp,
+      duplicate: Boolean(responseData.duplicate),
     });
 
   } catch (error: any) {

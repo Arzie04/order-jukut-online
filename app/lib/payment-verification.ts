@@ -407,6 +407,9 @@ export async function verifyPayment(file: File, expectedAmount: number): Promise
       devLog('📤 Payment valid! Uploading to Cloudinary...');
       cloudinaryUrl = await uploadToCloudinary(file);
       devLog('✅ Cloudinary URL:', cloudinaryUrl);
+      if (!isValidProofUrl(cloudinaryUrl)) {
+        throw new Error('Upload bukti pembayaran gagal menghasilkan URL valid.');
+      }
     } else {
       devLog('⏭️ Payment invalid - skipping Cloudinary upload to save storage');
     }
@@ -444,14 +447,30 @@ async function checkNetworkConnectivity(): Promise<boolean> {
 /**
  * Send payment confirmation to Google Apps Script with enhanced retry mechanism
  */
+function isValidProofUrl(url: string) {
+  const trimmed = url.trim();
+  return trimmed.startsWith('http://') || trimmed.startsWith('https://');
+}
+
 export async function confirmPayment(noOrder: string, cloudinaryUrl: string, statusPaid: boolean): Promise<void> {
-  devLog('💾 Sending payment confirmation:', { noOrder, cloudinaryUrl, statusPaid });
-  
-  // VALIDATION: Check if noOrder is valid before sending
-  if (!noOrder || String(noOrder).trim() === '') {
-    devError('❌ CRITICAL: Cannot confirm payment - noOrder is empty or invalid');
-    devError('   noOrder:', noOrder);
+  const normalizedOrder = String(noOrder || '').trim();
+  const normalizedUrl = String(cloudinaryUrl || '').trim();
+
+  devLog('[CONFIRM_PAYMENT] Payload:', {
+    noOrder: normalizedOrder,
+    statusPaid,
+    hasUrl: Boolean(normalizedUrl),
+    urlPreview: normalizedUrl ? normalizedUrl.substring(0, 80) : null,
+  });
+
+  if (!normalizedOrder) {
+    devError('[CONFIRM_PAYMENT] Missing no_order');
     throw new Error('Nomor pesanan tidak valid atau kosong. Tidak dapat mengkonfirmasi pembayaran.');
+  }
+
+  if (statusPaid && !isValidProofUrl(normalizedUrl)) {
+    devError('[CONFIRM_PAYMENT] Missing cloudinary_url for paid confirmation');
+    throw new Error('URL bukti pembayaran tidak valid. Silakan upload ulang bukti pembayaran.');
   }
   
   // First check network connectivity
@@ -480,9 +499,9 @@ export async function confirmPayment(noOrder: string, cloudinaryUrl: string, sta
         },
         body: JSON.stringify({
           type: 'CONFIRM_PAYMENT',
-          no_order: noOrder,
-          cloudinary_url: cloudinaryUrl,
-          status_paid: statusPaid
+          no_order: normalizedOrder,
+          cloudinary_url: normalizedUrl,
+          status_paid: statusPaid,
         }),
         signal: controller.signal,
       });

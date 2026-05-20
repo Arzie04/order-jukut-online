@@ -6,22 +6,43 @@ import { devError, devLog, devWarn } from '../../../lib/logger';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    devLog('💾 Payment proxy received:', body);
-    devLog('   Type:', body.type);
-    devLog('   No Order:', body.no_order);
-    devLog('   Status Paid:', body.status_paid);
+    const noOrder = String(body.no_order || '').trim();
+    const cloudinaryUrl = String(body.cloudinary_url || '').trim();
+    const statusPaid = Boolean(body.status_paid);
 
-    // Validation
-    if (!body.type || !body.no_order) {
-      devError('❌ Missing required fields');
+    devLog('[PAYMENT_PROXY] Received:', {
+      type: body.type,
+      noOrder,
+      statusPaid,
+      hasCloudinaryUrl: Boolean(cloudinaryUrl),
+      cloudinaryUrlPreview: cloudinaryUrl ? cloudinaryUrl.substring(0, 100) : null,
+    });
+
+    if (!body.type || !noOrder) {
+      devError('[PAYMENT_PROXY] Missing required fields');
       return NextResponse.json(
-        { 
-          error: 'Missing required fields: type, no_order',
-          success: false 
+        { error: 'Missing required fields: type, no_order', success: false },
+        { status: 400 }
+      );
+    }
+
+    if (body.type === 'CONFIRM_PAYMENT' && statusPaid && !cloudinaryUrl) {
+      devError('[PAYMENT_PROXY] status_paid=true but cloudinary_url empty');
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'cloudinary_url wajib diisi saat pembayaran terverifikasi.',
         },
         { status: 400 }
       );
     }
+
+    const forwardBody = {
+      ...body,
+      no_order: noOrder,
+      cloudinary_url: cloudinaryUrl,
+      status_paid: statusPaid,
+    };
 
     // Add abort controller with timeout to prevent hanging
     const controller = new AbortController();
@@ -33,7 +54,7 @@ export async function POST(request: NextRequest) {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(forwardBody),
       signal: controller.signal
     });
 

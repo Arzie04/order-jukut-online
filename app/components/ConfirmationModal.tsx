@@ -91,6 +91,10 @@ export default function ConfirmationModal({
   };
 
   const handleSubmitWithConfirmation = () => {
+    if (isSubmitting) {
+      return;
+    }
+
     setShowScreenshotConfirm(true);
   };
 
@@ -251,12 +255,16 @@ export default function ConfirmationModal({
               </button>
               <button
                 onClick={() => {
+                  if (isSubmitting) {
+                    return;
+                  }
                   setShowScreenshotConfirm(false);
                   onSubmit();
                 }}
+                disabled={isSubmitting}
                 className="flex-1 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white shadow"
               >
-                Sudah Screenshot
+                {isSubmitting ? 'Memproses...' : 'Sudah Screenshot'}
               </button>
             </div>
           </div>

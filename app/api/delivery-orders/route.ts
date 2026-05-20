@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import {
-  formatDeliveryOrderBroadcast,
-  getTakeOrderKeyboard,
   type DeliveryOrderCreatePayload,
   type DeliveryOrderRow,
   type DriverRow,
 } from '@/app/lib/delivery-driver-system';
-import { devError } from '@/app/lib/logger';
+import { devError, devLog } from '@/app/lib/logger';
 import { createSupabaseServerClient } from '@/app/lib/supabase-server';
-import { sendTelegramMessage } from '@/app/lib/telegram';
 
 async function insertDeliveryOrderWithSchemaFallback(
   supabase: ReturnType<typeof createSupabaseServerClient>,
@@ -26,7 +23,6 @@ async function insertDeliveryOrderWithSchemaFallback(
     status: 'waiting_driver',
   };
 
-  // Try legacy schema first (customer_*), then fallback to requested schema (costumer_*)
   const attempts = [
     {
       ...commonPayload,
@@ -42,7 +38,6 @@ async function insertDeliveryOrderWithSchemaFallback(
 
   let lastError: unknown = null;
   for (const payload of attempts) {
-    // Supabase generated Insert type only matches one DB column naming; runtime may use customer_* or costumer_*.
     const result = await supabase
       .from('delivery_orders')
       .insert(payload as Record<string, string | number>)
@@ -61,6 +56,16 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as DeliveryOrderCreatePayload;
     const supabase = createSupabaseServerClient();
+
+    if (!body.orderCode?.trim()) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'orderCode wajib diisi untuk membuat delivery order.',
+        },
+        { status: 400 }
+      );
+    }
 
     const { data: standbyDrivers, error: driversError } = await supabase
       .from('drivers')
@@ -84,26 +89,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { data: existingOrders, error: existingOrderError } = await supabase
+      .from('delivery_orders')
+      .select('*')
+      .eq('order_code', body.orderCode.trim())
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (existingOrderError) {
+      throw existingOrderError;
+    }
+
+    const existingOrder = ((existingOrders || [])[0] || null) as DeliveryOrderRow | null;
+    if (existingOrder) {
+      devLog('[DELIVERY_ORDERS] Duplicate delivery request blocked', {
+        orderCode: body.orderCode,
+        deliveryOrderId: existingOrder.id,
+      });
+
+      return NextResponse.json({
+        success: true,
+        duplicate: true,
+        deliveryOrderId: existingOrder.id,
+        standbyDrivers: availableDrivers.length,
+      });
+    }
+
     const insertedOrder = await insertDeliveryOrderWithSchemaFallback(supabase, body);
-
     const orderRow = insertedOrder as DeliveryOrderRow;
-    const message = formatDeliveryOrderBroadcast(orderRow);
 
-    await Promise.all(
-      availableDrivers
-        .filter((driver) => Boolean(driver.telegram_id))
-        .map(async (driver) => {
-          try {
-            await sendTelegramMessage(
-              String(driver.telegram_id),
-              message,
-              getTakeOrderKeyboard(orderRow.id)
-            );
-          } catch (telegramError) {
-            devError(`[DELIVERY_ORDER] Failed to notify driver ${driver.id}:`, telegramError);
-          }
-        })
-    );
+    devLog('[DELIVERY_ORDERS] Order queued for driver bot project', {
+      deliveryOrderId: orderRow.id,
+      orderCode: orderRow.order_code,
+      standbyDrivers: availableDrivers.length,
+    });
 
     return NextResponse.json({
       success: true,

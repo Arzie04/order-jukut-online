@@ -91,6 +91,50 @@ function reserveNextOrderId(sheet) {
   return buildOrderId(nextSequence);
 }
 
+function normalizeSubmissionKey(submissionKey) {
+  return String(submissionKey || '').trim();
+}
+
+function getSubmissionRecordPropertyKey(submissionKey) {
+  return `ORDER_SUBMISSION_${submissionKey}`;
+}
+
+function getStoredSubmissionRecord(submissionKey) {
+  const normalizedKey = normalizeSubmissionKey(submissionKey);
+  if (!normalizedKey) {
+    return null;
+  }
+
+  const rawRecord = PropertiesService
+    .getScriptProperties()
+    .getProperty(getSubmissionRecordPropertyKey(normalizedKey));
+
+  if (!rawRecord) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(rawRecord);
+  } catch (error) {
+    console.error('Failed to parse submission record:', error.toString());
+    return null;
+  }
+}
+
+function storeSubmissionRecord(submissionKey, record) {
+  const normalizedKey = normalizeSubmissionKey(submissionKey);
+  if (!normalizedKey) {
+    return;
+  }
+
+  PropertiesService
+    .getScriptProperties()
+    .setProperty(
+      getSubmissionRecordPropertyKey(normalizedKey),
+      JSON.stringify(record)
+    );
+}
+
 /* =========================
    MAIN ENTRY POINT (doGet)
    See: SCRIPT_ENDPOINTS_REFERENCE.md
@@ -592,8 +636,24 @@ function insertNewOrder(body) {
       });
     }
 
-    const noOrder = reserveNextOrderId(sheet);
+    const submissionKey = normalizeSubmissionKey(body.submission_key);
+    const storedSubmission = getStoredSubmissionRecord(submissionKey);
     const nowWIB = getNowInWIB();
+
+    if (storedSubmission && storedSubmission.no_order) {
+      console.log('Duplicate submission detected for key:', submissionKey);
+      return jsonOutput({
+        success: true,
+        duplicate: true,
+        message: "Pesanan sebelumnya sudah pernah dibuat",
+        no_order: storedSubmission.no_order,
+        nama: nama,
+        total: total,
+        timestamp: storedSubmission.timestamp || nowWIB.toISOString()
+      });
+    }
+
+    const noOrder = reserveNextOrderId(sheet);
     const note = String(body.note || '').trim();
     const status = body.status || "terbaru";
 
@@ -609,6 +669,13 @@ function insertNewOrder(body) {
       status,
       ''
     ]);
+
+    storeSubmissionRecord(submissionKey, {
+      no_order: noOrder,
+      request_hash: String(body.request_hash || '').trim(),
+      client_submitted_at: String(body.client_submitted_at || '').trim(),
+      timestamp: nowWIB.toISOString()
+    });
 
     console.log('Order inserted with no_order:', noOrder);
 

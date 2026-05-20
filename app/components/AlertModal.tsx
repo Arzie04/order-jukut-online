@@ -2,6 +2,11 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { verifyPayment, confirmPayment } from '../lib/payment-verification';
+import {
+  classifyPaymentError,
+  getInvalidImagePresentation,
+  type PaymentErrorPresentation,
+} from '../lib/payment-errors';
 
 interface AlertModalProps {
   isOpen: boolean;
@@ -33,7 +38,9 @@ export default function AlertModal({
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationResult, setVerificationResult] = useState<{
     success: boolean;
+    title?: string;
     message: string;
+    presentation?: PaymentErrorPresentation;
   } | null>(null);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
@@ -42,6 +49,25 @@ export default function AlertModal({
   const [showContinueGuide, setShowContinueGuide] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const continueSectionRef = useRef<HTMLDivElement>(null);
+  const lastUploadedFileRef = useRef<File | null>(null);
+
+  const persistProofToStorage = (orderNumber: string, proofUrl: string) => {
+    if (typeof window === 'undefined' || !proofUrl) return;
+    try {
+      const existing = localStorage.getItem('jukut_last_order');
+      const parsed = existing ? JSON.parse(existing) : {};
+      localStorage.setItem(
+        'jukut_last_order',
+        JSON.stringify({
+          ...parsed,
+          currentOrderNumber: orderNumber,
+          paymentProofUrl: proofUrl,
+        })
+      );
+    } catch (storageError) {
+      console.error('[PAYMENT] Failed to persist proof URL:', storageError);
+    }
+  };
   const shouldShowPaymentIssueAdminContact =
     type === 'success' &&
     noOrder &&
@@ -76,120 +102,111 @@ export default function AlertModal({
     }
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    
-    // VALIDATION: Check all required data before proceeding
-    if (!file) {
-      console.warn('⚠️ No file selected');
-      return;
-    }
-    
+  const runVerification = async (file: File) => {
     if (!noOrder || String(noOrder).trim() === '') {
-      console.error('❌ CRITICAL: noOrder is empty or invalid');
-      console.error('   noOrder value:', noOrder);
+      const presentation = classifyPaymentError(new Error('Nomor pesanan tidak valid'));
       setVerificationResult({
         success: false,
-        message: '❌ ERROR: Nomor pesanan hilang atau tidak valid. Silakan refresh halaman dan coba lagi.'
-      });
-      return;
-    }
-    
-    if (totalAmount == null || totalAmount <= 0) {
-      console.error('❌ CRITICAL: totalAmount is invalid');
-      setVerificationResult({
-        success: false,
-        message: '❌ ERROR: Jumlah pembayaran tidak valid. Silakan refresh halaman dan coba lagi.'
+        title: presentation.title,
+        message: presentation.message,
+        presentation,
       });
       return;
     }
 
+    if (totalAmount == null || totalAmount <= 0) {
+      const presentation = classifyPaymentError(new Error('Jumlah pembayaran tidak valid'));
+      setVerificationResult({
+        success: false,
+        title: presentation.title,
+        message: presentation.message,
+        presentation,
+      });
+      return;
+    }
+
+    lastUploadedFileRef.current = file;
     setIsVerifying(true);
     setVerificationResult(null);
 
     try {
-      console.log('🔍 Starting payment verification process...');
-      console.log('   Order Number:', noOrder);
-      console.log('   Expected Amount:', totalAmount);
-      console.log('   File:', file.name, file.size, 'bytes');
-      
       const result = await verifyPayment(file, totalAmount);
-      console.log('✅ Payment verification result:', result);
 
-      if (result.isValid) {
-        console.log('✅ Payment verification successful, confirming payment...');
-        console.log('   Sending confirmation to backend with noOrder:', noOrder);
+      if (result.isValid && result.cloudinaryUrl) {
         await confirmPayment(noOrder, result.cloudinaryUrl, true);
+        persistProofToStorage(noOrder, result.cloudinaryUrl);
+        setSavedCloudinaryUrl(result.cloudinaryUrl);
         setVerificationResult({
           success: true,
-          message: '✅ Pembayaran berhasil diverifikasi! Bukti telah disimpan.'
+          title: 'Pembayaran terverifikasi',
+          message: 'Bukti pembayaran berhasil disimpan. Lanjutkan pesanan ke WhatsApp.',
         });
         setPaymentConfirmed(true);
-        // Pass cloudinary URL to parent component
         onPaymentConfirmed?.(result.cloudinaryUrl);
-      } else {
-        console.log('⚠️ Payment verification failed - invalid payment');
-        const newRetryCount = retryCount + 1;
-        setRetryCount(newRetryCount);
-        
-        if (newRetryCount >= 3) {
-          // On 3rd attempt: upload to Cloudinary and save to database (hidden from user)
-          try {
-            console.log('🔄 3rd attempt - uploading payment proof to Cloudinary...');
-            const { uploadToCloudinary } = await import('../lib/payment-verification');
-            const cloudinaryUrl = await uploadToCloudinary(file);
-            console.log('✅ Payment proof uploaded to Cloudinary (hidden from user)');
-            console.log('   URL:', cloudinaryUrl);
-            
-            // Save to database with noOrder validation
-            console.log('💾 Saving to database with noOrder:', noOrder);
-            await confirmPayment(noOrder, cloudinaryUrl, false); // false = payment pending verification
+        return;
+      }
+
+      const newRetryCount = retryCount + 1;
+      setRetryCount(newRetryCount);
+      const invalidPresentation = getInvalidImagePresentation();
+
+      if (newRetryCount >= 3) {
+        try {
+          const { uploadToCloudinary } = await import('../lib/payment-verification');
+          const cloudinaryUrl = await uploadToCloudinary(file);
+          if (cloudinaryUrl) {
+            await confirmPayment(noOrder, cloudinaryUrl, false);
+            persistProofToStorage(noOrder, cloudinaryUrl);
             setSavedCloudinaryUrl(cloudinaryUrl);
-            console.log('✅ Payment proof saved to database');
-          } catch (uploadError) {
-            console.error('❌ Failed to upload on 3rd attempt:', uploadError);
           }
-          
-          setVerificationResult({
-            success: false,
-            message: `❌ Verifikasi gagal ${newRetryCount}x. Kirim bukti pembayaran ke admin dengan pesan di bawah.`
-          });
-        } else {
-          setVerificationResult({
-            success: false,
-            message: `❌ Verifikasi gagal (${newRetryCount}/3). Pastikan bukti pembayaran valid dan jumlah sesuai.`
-          });
+        } catch (uploadError) {
+          console.error('[VERIFY] Manual fallback upload failed:', uploadError);
         }
+
+        setVerificationResult({
+          success: false,
+          title: 'Verifikasi otomatis belum berhasil',
+          message:
+            'Kamu masih bisa lanjut manual ke admin. Bukti tetap disimpan jika upload berhasil.',
+          presentation: invalidPresentation,
+        });
+        return;
       }
-    } catch (error) {
-      console.error('❌ Verification error:', error);
-      
-      // Provide more specific error messages based on error type
-      let errorMessage = '❌ Terjadi kesalahan saat verifikasi. Silakan coba lagi.';
-      
-      if (error instanceof Error) {
-        if (error.message.includes('Koneksi internet bermasalah')) {
-          errorMessage = '❌ Koneksi internet bermasalah. Periksa koneksi Anda dan coba lagi.';
-        } else if (error.message.includes('timeout')) {
-          errorMessage = '❌ Permintaan timeout. Silakan coba lagi dalam beberapa saat.';
-        } else if (error.message.includes('konfigurasi server')) {
-          errorMessage = '❌ Terjadi masalah server. Silakan hubungi admin.';
-        } else if (error.message.includes('Upload to Cloudinary failed')) {
-          errorMessage = '❌ Gagal mengupload gambar. Periksa koneksi internet Anda.';
-        } else if (error.message.includes('tidak ditemukan di database')) {
-          errorMessage = `❌ Nomor pesanan ${noOrder} tidak ditemukan di database. Silakan hubungi admin dengan order number ini: ${noOrder}`;
-        } else if (error.message.includes('Gagal mengkonfirmasi pembayaran')) {
-          errorMessage = `❌ ${error.message}`;
-        }
-      }
-      
+
       setVerificationResult({
         success: false,
-        message: errorMessage
+        title: invalidPresentation.title,
+        message: `${invalidPresentation.message}\n\nPercobaan ${newRetryCount}/3.`,
+        presentation: invalidPresentation,
+      });
+    } catch (error) {
+      const presentation = classifyPaymentError(error);
+      setVerificationResult({
+        success: false,
+        title: presentation.title,
+        message: presentation.message,
+        presentation,
       });
     } finally {
       setIsVerifying(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    await runVerification(file);
+  };
+
+  const handleRetryVerification = async () => {
+    if (!lastUploadedFileRef.current) {
+      fileInputRef.current?.click();
+      return;
+    }
+    await runVerification(lastUploadedFileRef.current);
   };
 
   const handleTeruskanPesanan = () => {
@@ -314,16 +331,16 @@ export default function AlertModal({
             </h2>
           </div>
 
+          <p className="text-gray-700 mb-4 text-center leading-relaxed text-sm md:text-base font-semibold">
+            {message}
+          </p>
+
           {type === 'success' && noOrder && (
-            <div className="mb-5 rounded-2xl border-2 border-green-300 bg-white px-4 py-4 text-center shadow-md">
+            <div className="mb-4 rounded-2xl border-2 border-green-300 bg-white px-4 py-4 text-center shadow-md">
               <div className="text-xs font-bold uppercase tracking-wider text-green-700">Nomor Order</div>
               <div className="mt-1 text-4xl font-extrabold tracking-wide text-green-800 md:text-5xl">{noOrder}</div>
             </div>
           )}
-          
-          <p className="text-gray-700 mb-6 md:mb-8 text-center leading-relaxed text-sm md:text-base lg:text-base font-semibold">
-            {message}
-          </p>
 
           {/* Admin Contact - Show for danger/warning alerts */}
           {showGenericErrorHelp && (
@@ -347,27 +364,16 @@ export default function AlertModal({
             </div>
           )}
 
-          {/* Payment Verification Section */}
+          {/* Verifikasi Pembayaran — langsung di bawah nomor order */}
           {type === 'success' && noOrder && totalAmount != null && (
-            <div className="mb-6 md:mb-8 space-y-4 md:space-y-5 lg:space-y-4">
-              <div className="bg-gradient-to-r from-orange-100 to-yellow-100 border-2 border-orange-400 rounded-xl md:rounded-2xl p-4 md:p-6 lg:p-6 shadow-md">
-                <p className="text-xs md:text-sm lg:text-sm font-bold text-orange-900 mb-3 md:mb-4 lg:mb-3">Langkah 2 · Upload Bukti Pembayaran</p>
-                <p className="text-xs md:text-sm lg:text-sm text-orange-800 font-semibold leading-snug">
-                  Upload bukti pembayaran QRIS untuk verifikasi otomatis. Sistem akan melakukan verifikasi otomatis dan memverifikasi jumlah pembayaran.
+            <div className="mb-6 space-y-3">
+              <div className="rounded-xl border-2 border-fuchsia-300 bg-gradient-to-r from-fuchsia-50 to-indigo-50 p-3 text-center">
+                <p className="text-sm font-extrabold text-fuchsia-900">Verifikasi Pembayaran</p>
+                <p className="mt-1 text-xs text-fuchsia-800">
+                  Upload screenshot bukti transfer QRIS. Nominal dicek otomatis.
                 </p>
               </div>
 
-              {/* Instruksi Jelas */}
-              <div className="bg-gradient-to-r from-blue-100 to-cyan-100 border-2 border-blue-400 rounded-xl md:rounded-2xl p-4 md:p-6 lg:p-6 shadow-md">
-                <p className="text-xs md:text-sm lg:text-sm font-bold text-blue-900 mb-3 md:mb-4 lg:mb-3">Urutan Proses</p>
-                <ol className="text-xs md:text-sm lg:text-sm text-blue-800 space-y-2 md:space-y-2.5 list-decimal list-inside font-semibold leading-snug">
-                  <li>Upload <strong>bukti pembayaran QRIS</strong> (screenshot bukti pembayaran yang jelas)</li>
-                  <li>Klik tombol <strong>"Teruskan Pesanan"</strong> setelah verifikasi sukses</li>
-                  <li>Kirim bukti pembayaran ke admin bersama pesan template yang ada jika link bukti pembayaran tidak tersedia</li>
-                </ol>
-              </div>
-
-              {/* File Upload */}
               <div className="space-y-3">
                 <input
                   ref={fileInputRef}
@@ -388,20 +394,55 @@ export default function AlertModal({
                   <span className="text-2xl md:text-3xl lg:text-3xl group-hover:scale-125 transition-transform relative z-10">
                     {isVerifying ? '⏳' : paymentConfirmed ? '✅' : '⬆️'}
                   </span>
-                  <span className="text-base md:text-lg lg:text-lg font-bold relative z-10">
-                    {isVerifying ? 'Sedang Memverifikasi...' : paymentConfirmed ? 'Pembayaran Terverifikasi' : 'Upload Bukti Pembayaran'}
+                  <span className="text-base md:text-lg font-bold relative z-10">
+                    {isVerifying
+                      ? 'Sedang Memverifikasi...'
+                      : paymentConfirmed
+                      ? 'Pembayaran Terverifikasi'
+                      : 'Verifikasi Pembayaran'}
                   </span>
                 </label>
               </div>
 
-              {/* Verification Result */}
               {verificationResult && (
-                <div className={`p-4 rounded-xl border-2 ${
-                  verificationResult.success
-                    ? 'bg-green-50 border-green-400 text-green-800'
-                    : 'bg-red-50 border-red-400 text-red-800'
-                }`}>
-                  <p className="text-sm font-semibold">{verificationResult.message}</p>
+                <div
+                  className={`rounded-xl border-2 p-4 ${
+                    verificationResult.success
+                      ? 'border-green-400 bg-green-50 text-green-800'
+                      : verificationResult.presentation?.kind === 'system'
+                      ? 'border-amber-400 bg-amber-50 text-amber-900'
+                      : 'border-orange-300 bg-orange-50 text-orange-900'
+                  }`}
+                >
+                  {verificationResult.title && (
+                    <p className="text-sm font-bold">{verificationResult.title}</p>
+                  )}
+                  <p className="mt-1 whitespace-pre-line text-sm leading-relaxed">
+                    {verificationResult.message}
+                  </p>
+                  {!verificationResult.success && verificationResult.presentation && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {verificationResult.presentation.showRefresh && (
+                        <button
+                          type="button"
+                          onClick={() => window.location.reload()}
+                          className="rounded-lg bg-white px-3 py-2 text-xs font-bold text-gray-700 shadow border border-gray-200"
+                        >
+                          Refresh Halaman
+                        </button>
+                      )}
+                      {verificationResult.presentation.showRetry && (
+                        <button
+                          type="button"
+                          onClick={handleRetryVerification}
+                          disabled={isVerifying}
+                          className="rounded-lg bg-fuchsia-600 px-3 py-2 text-xs font-bold text-white shadow"
+                        >
+                          Coba Lagi
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
